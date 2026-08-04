@@ -7,6 +7,7 @@ export function createDefaultState() {
   return {
     eventTitle: 'Чемпионат Новосибирской области по мотоджимхане 2026',
     logoUrl: '/assets/logo.png',
+    stageId: null,
     activeScene: 'results',
     round: 'round1',
     lastSuccessfulPoll: 0,

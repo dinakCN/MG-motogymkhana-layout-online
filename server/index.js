@@ -11,6 +11,12 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const STATE_PATH = join(root, 'state.json')
 
 const state = loadState(STATE_PATH)
+
+// Всегда перекрываем сохранённое значение текущим: иначе после репетиции
+// на полигоне в пульте показывался бы этап из state.json, а данные шли бы
+// с боевого — и наоборот. Оператор должен видеть, откуда данные на самом деле.
+state.stageId = config.stageId
+
 const app = express()
 
 app.use('/assets', express.static(join(root, 'public/assets')))

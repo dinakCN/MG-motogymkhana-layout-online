@@ -1,0 +1,68 @@
+<script setup>
+import { ref } from 'vue'
+
+const props = defineProps({ rider: { type: Object, default: null } })
+const emit = defineEmits(['override'])
+
+const open = ref(false)
+const attempt = ref(1)
+const field = ref('time')
+const value = ref('')
+
+function apply() {
+  if (!props.rider || !value.value) return
+
+  emit('override', {
+    participantId: props.rider.id,
+    attempt: attempt.value,
+    field: field.value,
+    value: field.value === 'penalty' ? Number(value.value) : value.value,
+  })
+  value.value = ''
+}
+</script>
+
+<template>
+  <div class="panel">
+    <button class="toggle" @click="open = !open">
+      {{ open ? '▾' : '▸' }} Аварийная правка результата
+    </button>
+
+    <div v-if="open" class="body">
+      <p class="warn">Только если парсинг сломался. Обычный путь — данные с сайта.</p>
+      <p class="who">{{ rider ? `${rider.number ?? '—'} · ${rider.fio}` : 'выберите участника в списке' }}</p>
+
+      <div class="row">
+        <select v-model.number="attempt" class="input">
+          <option :value="1">Попытка 1</option>
+          <option :value="2">Попытка 2</option>
+        </select>
+        <select v-model="field" class="input">
+          <option value="time">Время</option>
+          <option value="penalty">Штраф</option>
+        </select>
+      </div>
+
+      <input v-model="value" class="input" placeholder="например 00:42.31" @keyup.enter="apply" />
+      <button class="btn danger wide" :disabled="!rider || !value" @click="apply">Применить</button>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.toggle {
+  background: none;
+  border: 0;
+  color: #8b949e;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.body { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.warn { font-size: 12px; color: #d29922; }
+.who { font-size: 13px; }
+.row { display: flex; gap: 8px; }
+.wide { width: 100%; }
+</style>
