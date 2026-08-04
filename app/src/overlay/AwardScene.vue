@@ -1,44 +1,50 @@
 <script setup>
 import { computed } from 'vue'
-import { topOfClass, bestOf } from '../shared/format.js'
+import { podiumOf } from '../shared/awardGroups.js'
+import { bestOf } from '../shared/format.js'
 import BaseLayer from './BaseLayer.vue'
 
 const props = defineProps({ state: { type: Object, required: true } })
 
+// Место — это порядковый номер призёра, а не placeInClass с сайта: сайт
+// считает места внутри класса, и на подиуме «Любителей» иначе оказались бы
+// два первых — одно от D2, другое от D3.
+const slots = computed(() => podiumOf(
+  props.state.participants,
+  props.state.award.subject,
+  props.state.awardGroups ?? [],
+  props.state.riderGroups ?? {},
+).map((rider, index) => ({ rider, place: index + 1 })))
+
 const podium = computed(() => {
-  const cls = props.state.award.sportClass
-  if (!cls) return []
-
-  const top3 = topOfClass(props.state.participants, cls, 3)
-
   if (!props.state.award.showAllThree) {
-    return top3.filter(p => p.placeInClass === props.state.award.place)
+    return slots.value.filter(s => s.place === props.state.award.place)
   }
 
   // Второе слева, первое в центре, третье справа — узнаваемая форма
   // подиума. Порядок 1-2-3 читался бы как обычный список.
   return [2, 1, 3]
-    .map(place => top3.find(p => p.placeInClass === place))
+    .map(place => slots.value.find(s => s.place === place))
     .filter(Boolean)
 })
 </script>
 
 <template>
   <BaseLayer :logo-url="state.logoUrl" logo="small">
-    <h1>Класс {{ state.award.sportClass || '—' }}</h1>
+    <h1>{{ state.award.subject || '—' }}</h1>
 
     <div class="podium">
       <div
-        v-for="rider in podium"
-        :key="rider.id"
+        v-for="slot in podium"
+        :key="slot.rider.id"
         class="slot"
-        :class="`p${rider.placeInClass}`"
+        :class="`p${slot.place}`"
       >
-        <div class="place">{{ rider.placeInClass }}</div>
-        <div class="fio">{{ rider.fio }}</div>
-        <div class="city">{{ rider.city }}</div>
-        <div class="moto">{{ rider.motorcycle }}</div>
-        <div class="time tabular">{{ bestOf(rider) ?? '—' }}</div>
+        <div class="place">{{ slot.place }}</div>
+        <div class="fio">{{ slot.rider.fio }}</div>
+        <div class="city">{{ slot.rider.city }}</div>
+        <div class="moto">{{ slot.rider.motorcycle }}</div>
+        <div class="time tabular">{{ bestOf(slot.rider) ?? '—' }}</div>
       </div>
     </div>
 
