@@ -4,3 +4,6 @@ state.json
 .DS_Store
 *.log
 .env
+
+# отладочные артефакты браузерных проверок
+.playwright-mcp/

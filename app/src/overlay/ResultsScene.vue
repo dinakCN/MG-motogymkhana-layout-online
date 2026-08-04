@@ -17,13 +17,6 @@ const duration = ref(30)
 // и не зависит от числа участников: чем длиннее список, тем дольше проход.
 const SCROLL_SPEED = 45
 
-// Число колонок подбирается измерением, а не формулой от количества строк:
-// высота зависит от длины имён, числа групп и переносов, и любая формула
-// промахивается. Пробуем 1 → 2 → 3 и останавливаемся на первой, где
-// контент помещается в кадр целиком.
-//
-// Прокрутка — страховка последнего уровня: включается, только если не
-// хватило и трёх колонок. Оператор в этом решении не участвует.
 const settle = (ms) => new Promise(resolve => setTimeout(resolve, ms))
 
 // Колонок всегда две: при составе до 80 человек «подобрать столько колонок,
@@ -44,13 +37,30 @@ async function measure() {
   duration.value = Math.max(Math.round(shift.value / SCROLL_SPEED), 20)
 }
 
-watch(() => props.state.participants.length, measure, { immediate: true })
+// Пересчитываем и когда меняется число групп: организаторы могут проставить
+// класс участнику, который шёл без класса, — участников столько же, а групп
+// на одну больше, и высота контента вырастает.
+watch(
+  () => [props.state.participants.length, groups.value.length].join(':'),
+  measure,
+  { immediate: true },
+)
 
-function attemptCell(rider, n) {
-  const attempt = rider.attempts?.find(a => a.n === n)
-  if (!attempt?.time) return { time: '—', penalty: null }
-  return { time: attempt.time, penalty: attempt.penalty || null }
-}
+// Строки готовятся один раз на приход данных, а не пересчитываются
+// в шаблоне на каждое обращение к ячейке.
+const rows = computed(() => groups.value.map(group => ({
+  ...group,
+  riders: group.riders.map(rider => ({
+    rider,
+    attempts: [1, 2].map((n) => {
+      const attempt = rider.attempts?.find(a => a.n === n)
+      return attempt?.time
+        ? { time: attempt.time, penalty: attempt.penalty || null }
+        : { time: '—', penalty: null }
+    }),
+    best: bestOf(rider) ?? '—',
+  })),
+})))
 </script>
 
 <template>
@@ -67,7 +77,7 @@ function attemptCell(rider, n) {
         :class="{ scrolling: needsScroll }"
         :style="{ '--shift': `${shift}px`, '--duration': `${duration}s` }"
       >
-        <section v-for="group in groups" :key="group.sportClass" class="group">
+        <section v-for="group in rows" :key="group.sportClass" class="group">
           <!-- Подписи колонок живут в шапке класса: так они выровнены над
                своими колонками и не съедают отдельную строку высоты. -->
           <h2 :class="`color-${group.classColor}`">
@@ -78,19 +88,16 @@ function attemptCell(rider, n) {
           </h2>
 
           <TransitionGroup name="row" tag="div">
-            <div v-for="rider in group.riders" :key="rider.id" class="row">
-              <span class="place tabular">{{ rider.placeInClass ?? '—' }}</span>
-              <span class="num tabular">{{ rider.number ?? '—' }}</span>
-              <span class="name">{{ rider.fio }}</span>
+            <div v-for="row in group.riders" :key="row.rider.id" class="row">
+              <span class="place tabular">{{ row.rider.placeInClass ?? '—' }}</span>
+              <span class="num tabular">{{ row.rider.number ?? '—' }}</span>
+              <span class="name">{{ row.rider.fio }}</span>
               <span
-                v-for="n in [1, 2]"
-                :key="n"
+                v-for="(attempt, i) in row.attempts"
+                :key="i"
                 class="time tabular"
-              >{{ attemptCell(rider, n).time }}<i
-                v-if="attemptCell(rider, n).penalty"
-                class="pen"
-              >+{{ attemptCell(rider, n).penalty }}</i></span>
-              <span class="best tabular">{{ bestOf(rider) ?? '—' }}</span>
+              >{{ attempt.time }}<i v-if="attempt.penalty" class="pen">+{{ attempt.penalty }}</i></span>
+              <span class="best tabular">{{ row.best }}</span>
             </div>
           </TransitionGroup>
         </section>
@@ -103,7 +110,7 @@ function attemptCell(rider, n) {
 .results {
   width: 100%;
   height: 100%;
-  /* Плотная подложка: 47 строк поверх светлого асфальта нечитаемы,
+  /* Плотная подложка: десятки строк поверх светлого асфальта нечитаемы,
      а проверить освещение на площадке будет негде. */
   background: linear-gradient(160deg, #0d1117 0%, #161b22 100%);
   padding: 32px 48px;
@@ -118,7 +125,16 @@ h1 { font-size: 34px; font-weight: 700; letter-spacing: -0.01em; }
 
 /* Только когда список едет: строки на кромках растворяются вместо резкого
    обреза. Без прокрутки маска не нужна и не гасит верхнюю строку. */
+/* Префикс обязателен: OBS рендерит источник через CEF, и версия Chromium
+   там может быть старше настольного браузера. */
 .body.masked {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 40px,
+    #000 calc(100% - 40px),
+    transparent 100%
+  );
   mask-image: linear-gradient(
     to bottom,
     transparent 0,
