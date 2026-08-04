@@ -15,6 +15,7 @@ import './control.css'
 const { state, connected, send } = useSocket()
 
 const query = ref('')
+const onlyGroup = ref(false)
 const selected = ref(null)
 const runBlock = ref(null)
 
@@ -94,6 +95,8 @@ function hideHighlight() {
         <AwardBlock
           :participants="participants"
           :award="state.award"
+          :award-groups="state.awardGroups ?? []"
+          :rider-groups="state.riderGroups ?? {}"
           @change="send('setAward', $event)"
         />
         <OverrideBlock :rider="selected" @override="send('manualOverride', $event)" />
@@ -105,6 +108,10 @@ function hideHighlight() {
         <div class="panel search-panel">
           <h3>Участники · {{ participants.length }}</h3>
           <input v-model="query" class="input" placeholder="поиск: ФИО, номер, класс, город" />
+          <label class="check">
+            <input v-model="onlyGroup" type="checkbox" :disabled="!state.award.subject" />
+            только группа награждения
+          </label>
         </div>
 
         <div class="panel list-panel">
@@ -112,7 +119,11 @@ function hideHighlight() {
             :participants="participants"
             :query="query"
             :selected-id="selected?.id ?? null"
+            :award-groups="state.awardGroups ?? []"
+            :rider-groups="state.riderGroups ?? {}"
+            :group-filter="onlyGroup ? state.award.subject : null"
             @pick="selected = $event"
+            @group="send('setRiderGroup', $event)"
           />
         </div>
       </div>
@@ -135,6 +146,7 @@ function hideHighlight() {
 .left { overflow-y: auto; padding-right: 2px; }
 .search-panel { flex: none; }
 .list-panel { padding: 0; flex: 1; overflow: hidden; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-top: 8px; cursor: pointer; color: var(--ink-dim); }
 
 .loading {
   display: flex;
