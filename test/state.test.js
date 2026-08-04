@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { rmSync, writeFileSync } from 'node:fs'
+import { bestOf } from '../app/src/shared/format.js'
 import { UNGROUPED } from '../app/src/shared/awardGroups.js'
 import { createDefaultState, applyParticipants, applyCommand, saveState, loadState, normalizeOverride, UNGROUPED as SERVER_UNGROUPED } from '../server/state.js'
 
@@ -262,6 +263,23 @@ describe('applyCommand', () => {
 
     applyParticipants(s, [fromSite()])
     expect(s.participants[0].corrected).toBeUndefined()
+  })
+
+  // Незачёт — решение судей. Правка времени его не отменяет: иначе кадр
+  // разошёлся бы с протоколом, а оператор об этом даже не узнал бы.
+  it('правка времени не возвращает незачтённую попытку в зачёт', () => {
+    const s = createDefaultState()
+    const p = rider('1', 'Болдов Иван')
+    p.attempts = [
+      { n: 1, time: '03:47.90', penalty: 0, scratched: true },
+      { n: 2, time: '02:43.86', penalty: 0 },
+    ]
+    applyParticipants(s, [p])
+
+    applyCommand(s, { type: 'manualOverride', payload: { participantId: '1', attempt: 1, field: 'time', value: '01:20.00' } })
+
+    expect(s.participants[0].attempts[0]).toMatchObject({ time: '01:20.00', scratched: true })
+    expect(bestOf(s.participants[0])).toBe('02:43.86')
   })
 
   it('отвергает правку для неизвестного участника', () => {

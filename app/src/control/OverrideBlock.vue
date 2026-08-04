@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { isScratched } from '../shared/format.js'
 
 const props = defineProps({ rider: { type: Object, default: null } })
 const emit = defineEmits(['override'])
@@ -27,6 +28,14 @@ const valid = computed(() => {
 const hint = computed(() => (field.value === 'penalty'
   ? 'целые секунды штрафа, например 4'
   : 'время как в протоколе: 01:23.72 или 01:23.7215'))
+
+// В зачёт идёт только засчитанная попытка. Правка времени незачтённой
+// её не воскрешает — и это правильно, иначе кадр разошёлся бы с решением
+// судей. Но молча оператор бы не понял, почему вписанное время не считается.
+const notCounted = computed(() => {
+  const chosen = props.rider?.attempts?.find(a => a.n === attempt.value)
+  return Boolean(chosen && isScratched(chosen))
+})
 
 function apply() {
   if (!props.rider || !valid.value) return
@@ -85,6 +94,10 @@ function reset() {
         @keyup.enter="apply"
       />
       <p v-if="value.trim() && !valid" class="bad-hint">Не разберётся: {{ hint }}</p>
+      <p v-if="notCounted" class="warn">
+        Попытка {{ attempt }} не зачтена в протоколе — правка не вернёт её в зачёт.
+        Лучшее время считается по засчитанным попыткам.
+      </p>
 
       <div class="row">
         <button class="btn danger grow" :disabled="!rider || !valid" @click="apply">Применить</button>
