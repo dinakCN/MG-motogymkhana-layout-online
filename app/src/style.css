@@ -1,0 +1,35 @@
+:root {
+  --bg: #0d1117;
+  --fg: #f0f6fc;
+  --muted: #8b949e;
+  --line: rgba(240, 246, 252, 0.12);
+  --accent: #f5a524;
+  --class-blue: #58a6ff;
+  --class-green: #3fb950;
+  --class-yellow: #d29922;
+  --class-white: #c9d1d9;
+  --class-unknown: #6e7681;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body, #app {
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  background: transparent;
+  font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+  color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+}
+
+.tabular { font-variant-numeric: tabular-nums; }
+
+.scene-enter-active, .scene-leave-active { transition: opacity 350ms ease-out; }
+.scene-enter-from, .scene-leave-to { opacity: 0; }
+
+.row-move { transition: transform 400ms ease-out; }
+.row-enter-active { transition: opacity 350ms ease-out, transform 350ms ease-out; }
+.row-leave-active { position: absolute; transition: opacity 250ms ease-in; }
+.row-enter-from { opacity: 0; transform: translateX(-24px); }
+.row-leave-to { opacity: 0; }
