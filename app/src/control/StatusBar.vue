@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { secondsSince } from '../shared/format.js'
+import { roundText } from '../shared/rounds.js'
 
 const props = defineProps({
   state: { type: Object, required: true },
@@ -27,14 +28,11 @@ const level = computed(() => {
   return 'ok'
 })
 
-const ROUNDS = {
-  round1: '1-я попытка',
-  break1: 'перерыв',
-  round2: '2-я попытка',
-  final: 'итоги',
-  break2: 'перед награждением',
-  awards: 'награждение',
-}
+// Боевой этап приходит с сервера (config.liveStageId): держать его номер
+// ещё и здесь значило бы, что после смены этапа предупреждение начнёт врать.
+const rehearsal = computed(
+  () => Boolean(props.state.liveStageId && props.state.stageId !== props.state.liveStageId),
+)
 </script>
 
 <template>
@@ -47,15 +45,15 @@ const ROUNDS = {
 
     <span class="sep">·</span>
     <!-- Номер этапа на виду: защита от эфира на данных полигона. -->
-    <span class="stage" :class="{ rehearsal: state.stageId && state.stageId !== '677' }">
-      этап {{ state.stageId ?? '—' }}{{ state.stageId && state.stageId !== '677' ? ' (не боевой!)' : '' }}
+    <span class="stage" :class="{ rehearsal }">
+      этап {{ state.stageId ?? '—' }}{{ rehearsal ? ' (не боевой!)' : '' }}
     </span>
 
     <span class="sep">·</span>
     <span>участников: {{ state.participants.length }}</span>
 
     <span class="sep">·</span>
-    <span>раунд: {{ ROUNDS[state.round] ?? state.round }}</span>
+    <span>момент: {{ roundText(state.round).label }}</span>
   </div>
 </template>
 

@@ -5,6 +5,7 @@ import StatusBar from './StatusBar.vue'
 import SceneTabs from './SceneTabs.vue'
 import ParticipantList from './ParticipantList.vue'
 import RunBlock from './RunBlock.vue'
+import RoundBlock from './RoundBlock.vue'
 import HighlightBlock from './HighlightBlock.vue'
 import AwardBlock from './AwardBlock.vue'
 import OverrideBlock from './OverrideBlock.vue'
@@ -51,15 +52,11 @@ function publishRun(payload) {
   send('setActiveScene', 'run')
 }
 
-// Сцена, на которую вернёмся после хайлайта. Хайлайт — вставка поверх
-// эфира, а не пункт назначения: после него кадр обязан вернуться туда,
-// откуда пришёл, иначе через 6 секунд в эфире останется пустота.
-let sceneBeforeHighlight = 'results'
-
+// Хайлайт — вставка поверх эфира, а не пункт назначения: после него кадр
+// обязан вернуться туда, откуда пришёл, иначе через 6 секунд в эфире
+// останется пустота. Сцену возврата помнит сервер (state.highlight.returnScene),
+// поэтому перезагруженный посреди хайлайта пульт вернёт кадр туда же.
 function showHighlight(payload) {
-  if (state.value?.activeScene !== 'highlight') {
-    sceneBeforeHighlight = state.value?.activeScene ?? 'results'
-  }
   send('showHighlight', payload)
   send('setActiveScene', 'highlight')
 }
@@ -67,7 +64,7 @@ function showHighlight(payload) {
 function hideHighlight() {
   send('hideHighlight')
   if (state.value?.activeScene === 'highlight') {
-    send('setActiveScene', sceneBeforeHighlight)
+    send('setActiveScene', state.value?.highlight?.returnScene ?? 'results')
   }
 }
 </script>
@@ -89,9 +86,11 @@ function hideHighlight() {
         />
         <HighlightBlock
           :preselected="selected"
+          :timeout="state.highlightTimeout ?? 6000"
           @show="showHighlight"
           @hide="hideHighlight"
         />
+        <RoundBlock :round="state.round" @change="send('setRound', $event)" />
         <AwardBlock
           :participants="participants"
           :award="state.award"
