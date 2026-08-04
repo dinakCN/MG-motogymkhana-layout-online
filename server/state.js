@@ -39,6 +39,30 @@ export function createDefaultState() {
 
 const overrideKey = (participantId, attempt, field) => `${participantId}:${attempt}:${field}`
 
+// Аварийную правку набирают руками и в спешке. Значение, которое не
+// разберётся дальше, хуже отсутствующего: время в чужом формате осело бы
+// в таблице строкой, не попало ни в лучшее время, ни в отставания, и
+// выглядело бы при этом как настоящий результат.
+//
+// Принимаем «1:23,7», «01:23.72», «01:23.7215» — и приводим к виду протокола.
+// Дробную часть не режем: хронометраж ведут до десятитысячных, и правка,
+// округлённая до сотых, разошлась бы с официальным результатом.
+// Возвращаем null, если разобрать не удалось: команда будет отвергнута.
+export function normalizeOverride(field, value) {
+  if (field === 'penalty') {
+    const penalty = Number(value)
+    return Number.isInteger(penalty) && penalty >= 0 && penalty <= 999 ? penalty : null
+  }
+
+  const match = String(value).trim().match(/^(\d{1,2}):(\d{1,2})(?:[.,](\d{1,4}))?$/)
+  if (!match) return null
+
+  const [, mm, ss, frac = '0'] = match
+  if (Number(ss) > 59) return null
+
+  return `${mm.padStart(2, '0')}:${ss.padStart(2, '0')}.${frac.padEnd(2, '0')}`
+}
+
 // Находит попытку участника, при необходимости заводя пустую. Аварийная
 // правка нужна ровно тогда, когда данных нет: строки второй попытки на
 // сайте может ещё не быть, а результат уже объявили в эфире.
@@ -55,12 +79,28 @@ function attemptSlot(participant, n) {
   return attempt
 }
 
+const hasOverrides = (state, participantId) =>
+  Object.keys(state.overrides ?? {}).some(key => key.startsWith(`${participantId}:`))
+
+// Пометка для кадра: попытки этого участника правил оператор, и лучшее
+// время сайта посчитано по устаревшим данным. Ставится сразу в момент
+// правки — ждать следующего опроса нельзя, эти семь секунд в кадре висело
+// бы противоречие: исправленная попытка 01:19.80 при «лучшем» 01:22.61.
+function markCorrected(state, participant) {
+  if (!participant) return
+  if (hasOverrides(state, participant.id)) participant.corrected = true
+  else delete participant.corrected
+}
+
 export function applyOverrides(state) {
   for (const [key, value] of Object.entries(state.overrides ?? {})) {
     const [participantId, attemptNumber, field] = key.split(':')
     const participant = state.participants.find(p => p.id === participantId)
     const attempt = attemptSlot(participant, Number(attemptNumber))
-    if (attempt) attempt[field] = value
+    if (!attempt) continue
+
+    attempt[field] = value
+    participant.corrected = true
   }
 }
 
@@ -137,11 +177,16 @@ export function applyCommand(state, message) {
       // которой на сайте нет.
       if (payload.value === '' || payload.value === null) {
         delete state.overrides[key]
+        markCorrected(state, p)
         return true
       }
 
-      state.overrides[key] = payload.value
-      attemptSlot(p, payload.attempt)[payload.field] = payload.value
+      const value = normalizeOverride(payload.field, payload.value)
+      if (value === null) return false
+
+      state.overrides[key] = value
+      attemptSlot(p, payload.attempt)[payload.field] = value
+      markCorrected(state, p)
       return true
     }
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { rmSync, writeFileSync } from 'node:fs'
-import { createDefaultState, applyParticipants, applyCommand, saveState, loadState } from '../server/state.js'
+import { createDefaultState, applyParticipants, applyCommand, saveState, loadState, normalizeOverride } from '../server/state.js'
 
 const rider = (id, fio) => ({
   id, athleteId: id, sportClass: 'C3', classColor: 'green', number: 28,
@@ -196,6 +196,34 @@ describe('applyCommand', () => {
     expect(s.participants[0].attempts).toHaveLength(1)
   })
 
+  it('правленый участник помечается — кадру нельзя доверять лучшему времени сайта', () => {
+    const s = createDefaultState()
+    const fromSite = () => {
+      const r = rider('1', 'Болдов Иван')
+      r.attempts = [{ n: 1, time: '01:24.16', penalty: 2 }]
+      r.bestTime = '01:26.16'
+      return r
+    }
+
+    applyParticipants(s, [fromSite()])
+    expect(s.participants[0].corrected).toBeUndefined()
+
+    // сразу, не дожидаясь следующего опроса: иначе семь секунд в кадре
+    // висит исправленная попытка при старом «лучшем»
+    applyCommand(s, { type: 'manualOverride', payload: { participantId: '1', attempt: 1, field: 'time', value: '01:19.80' } })
+    expect(s.participants[0].corrected).toBe(true)
+
+    applyParticipants(s, [fromSite()])
+    expect(s.participants[0].corrected).toBe(true)
+
+    // правку сняли — пометка снимается тут же
+    applyCommand(s, { type: 'manualOverride', payload: { participantId: '1', attempt: 1, field: 'time', value: '' } })
+    expect(s.participants[0].corrected).toBeUndefined()
+
+    applyParticipants(s, [fromSite()])
+    expect(s.participants[0].corrected).toBeUndefined()
+  })
+
   it('отвергает правку для неизвестного участника', () => {
     const s = createDefaultState()
     applyParticipants(s, [rider('1', 'Болдов Иван')])
@@ -206,6 +234,49 @@ describe('applyCommand', () => {
   it('игнорирует неизвестную команду', () => {
     const s = createDefaultState()
     expect(applyCommand(s, { type: 'что-то', payload: 1 })).toBe(false)
+  })
+})
+
+// Правку набирают руками и в спешке. Значение, которое не разберётся
+// дальше, осело бы в таблице строкой и выглядело результатом, не попадая
+// при этом ни в лучшее время, ни в отставания.
+describe('нормализация аварийной правки', () => {
+  it('приводит время к виду протокола', () => {
+    expect(normalizeOverride('time', '1:23.7')).toBe('01:23.70')
+    expect(normalizeOverride('time', '01:23,72')).toBe('01:23.72')
+    expect(normalizeOverride('time', ' 01:23.72 ')).toBe('01:23.72')
+    expect(normalizeOverride('time', '1:2')).toBe('01:02.00')
+  })
+
+  it('сохраняет четыре знака — хронометраж точнее протокола', () => {
+    expect(normalizeOverride('time', '01:23.7215')).toBe('01:23.7215')
+    expect(normalizeOverride('time', '1:23,715')).toBe('01:23.715')
+  })
+
+  it('отвергает то, что не время', () => {
+    expect(normalizeOverride('time', 'быстро')).toBeNull()
+    expect(normalizeOverride('time', '83.72')).toBeNull()
+    expect(normalizeOverride('time', '01:73.00')).toBeNull()
+    expect(normalizeOverride('time', '')).toBeNull()
+  })
+
+  it('штраф — только целые секунды', () => {
+    expect(normalizeOverride('penalty', '4')).toBe(4)
+    expect(normalizeOverride('penalty', 0)).toBe(0)
+    expect(normalizeOverride('penalty', '2.5')).toBeNull()
+    expect(normalizeOverride('penalty', 'abc')).toBeNull()
+    expect(normalizeOverride('penalty', -1)).toBeNull()
+  })
+
+  it('мусор не проходит через команду и не портит данные', () => {
+    const s = createDefaultState()
+    applyParticipants(s, [rider('1', 'Болдов Иван')])
+    s.participants[0].attempts = [{ n: 1, time: '01:23.72', penalty: 0 }]
+
+    expect(applyCommand(s, { type: 'manualOverride', payload: { participantId: '1', attempt: 1, field: 'time', value: 'быстро' } })).toBe(false)
+    expect(applyCommand(s, { type: 'manualOverride', payload: { participantId: '1', attempt: 1, field: 'penalty', value: NaN } })).toBe(false)
+    expect(s.participants[0].attempts[0]).toEqual({ n: 1, time: '01:23.72', penalty: 0 })
+    expect(s.overrides).toEqual({})
   })
 })
 

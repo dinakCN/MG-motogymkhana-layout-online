@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, watch } from 'vue'
 
 const props = defineProps({ rider: { type: Object, default: null } })
 const emit = defineEmits(['override'])
@@ -9,14 +9,34 @@ const attempt = ref(1)
 const field = ref('time')
 const value = ref('')
 
-function apply() {
-  if (!props.rider || !value.value) return
+watch(field, () => { value.value = '' })
 
+// Те же правила, что и на сервере (normalizeOverride в server/state.js):
+// сервер отвергает неразобранное значение молча, и без этой проверки
+// оператор в эфире не понял бы, почему правка «не применилась».
+const valid = computed(() => {
+  const raw = value.value.trim()
+  if (!raw) return false
+
+  return field.value === 'penalty'
+    ? /^\d{1,3}$/.test(raw)
+    : /^\d{1,2}:[0-5]?\d([.,]\d{1,4})?$/.test(raw)
+})
+
+// Знаков после точки — сколько намерил хронометраж, до четырёх.
+const hint = computed(() => (field.value === 'penalty'
+  ? 'целые секунды штрафа, например 4'
+  : 'время как в протоколе: 01:23.72 или 01:23.7215'))
+
+function apply() {
+  if (!props.rider || !valid.value) return
+
+  const raw = value.value.trim()
   emit('override', {
     participantId: props.rider.id,
     attempt: attempt.value,
     field: field.value,
-    value: field.value === 'penalty' ? Number(value.value) : value.value,
+    value: field.value === 'penalty' ? Number(raw) : raw,
   })
   value.value = ''
 }
@@ -57,10 +77,17 @@ function reset() {
         </select>
       </div>
 
-      <input v-model="value" class="input" placeholder="например 00:42.31" @keyup.enter="apply" />
+      <input
+        v-model="value"
+        class="input"
+        :class="{ bad: value.trim() && !valid }"
+        :placeholder="hint"
+        @keyup.enter="apply"
+      />
+      <p v-if="value.trim() && !valid" class="bad-hint">Не разберётся: {{ hint }}</p>
 
       <div class="row">
-        <button class="btn danger grow" :disabled="!rider || !value" @click="apply">Применить</button>
+        <button class="btn danger grow" :disabled="!rider || !valid" @click="apply">Применить</button>
         <button class="btn" :disabled="!rider" @click="reset">Снять правку</button>
       </div>
 
@@ -86,4 +113,9 @@ function reset() {
 .row { display: flex; gap: 8px; }
 .grow { flex: 1; }
 .note { font-size: 11px; color: var(--ink-faint); }
+
+/* Значение, которое сервер отвергнет, видно до нажатия: молчаливый отказ
+   в эфире выглядел бы как «правка не работает». */
+.input.bad { border-color: var(--danger); }
+.bad-hint { font-size: 12px; color: var(--danger); }
 </style>
