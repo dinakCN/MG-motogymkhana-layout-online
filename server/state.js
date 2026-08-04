@@ -10,6 +10,11 @@ export const SCENES = ['results', 'run', 'highlight', 'break', 'award', 'idle']
 // списков стережёт тест: разъехавшись, они молча отвергали бы команды пульта.
 export const ROUNDS = ['round1', 'break1', 'round2', 'final', 'break2', 'awards']
 
+// Дублирует UNGROUPED из app/src/shared/awardGroups.js: сервер не
+// импортирует клиентский код. Совпадение стережёт тест — разъехавшись,
+// сервер молча отвергал бы команду пульта показать этих участников.
+export const UNGROUPED = 'Вне групп'
+
 export function createDefaultState() {
   return {
     eventTitle: 'Чемпионат Новосибирской области по мотоджимхане 2026',
@@ -168,13 +173,43 @@ export function applyCommand(state, message) {
       state.highlight = { ...state.highlight, visible: false }
       return true
 
-    case 'setAward':
+    case 'setAward': {
+      const subject = payload?.subject ?? null
+
+      // Неизвестное имя означает, что пульт и сервер разошлись: приняв его,
+      // мы вывели бы в кадр заголовок группы, которой нет.
+      const known = subject === null
+        || subject === UNGROUPED
+        || (state.awardGroups ?? []).some(g => g.name === subject)
+      if (!known) return false
+
       state.award = {
-        sportClass: payload?.sportClass ?? null,
+        subject,
         place: payload?.place ?? 1,
         showAllThree: Boolean(payload?.showAllThree),
       }
       return true
+    }
+
+    case 'setRiderGroup': {
+      const p = state.participants.find(x => x.id === payload?.participantId)
+      if (!p) return false
+
+      const group = payload?.group ?? null
+
+      // Пустое значение возвращает участника в группу по его классу.
+      if (group === null) {
+        delete state.riderGroups[payload.participantId]
+        return true
+      }
+
+      // UNGROUPED сюда не принимается: это вычисляемое место сбора тех, чей
+      // класс не нашёлся, а не группа, в которую можно кого-то положить.
+      if (!(state.awardGroups ?? []).some(g => g.name === group)) return false
+
+      state.riderGroups[payload.participantId] = group
+      return true
+    }
 
     case 'manualOverride': {
       const p = state.participants.find(x => x.id === payload?.participantId)

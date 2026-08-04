@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { rmSync, writeFileSync } from 'node:fs'
-import { createDefaultState, applyParticipants, applyCommand, saveState, loadState, normalizeOverride } from '../server/state.js'
+import { UNGROUPED } from '../app/src/shared/awardGroups.js'
+import { createDefaultState, applyParticipants, applyCommand, saveState, loadState, normalizeOverride, UNGROUPED as SERVER_UNGROUPED } from '../server/state.js'
 
 const rider = (id, fio) => ({
   id, athleteId: id, sportClass: 'C3', classColor: 'green', number: 28,
@@ -357,6 +358,84 @@ describe('сохранение и загрузка', () => {
     expect(restored.participants).toEqual([])
 
     rmSync(old, { force: true })
+  })
+})
+
+const withGroups = () => {
+  const s = createDefaultState()
+  s.awardGroups = [
+    { name: 'Любители', classes: ['D2', 'D3'] },
+    { name: 'SB', classes: [] },
+  ]
+  applyParticipants(s, [rider('1', 'Болдов Иван'), rider('2', 'Петров Илья')])
+  return s
+}
+
+describe('setAward', () => {
+  it('принимает группу из справочника', () => {
+    const s = withGroups()
+    expect(applyCommand(s, { type: 'setAward', payload: { subject: 'Любители', place: 2 } })).toBe(true)
+    expect(s.award.subject).toBe('Любители')
+    expect(s.award.place).toBe(2)
+  })
+
+  it('принимает «Вне групп» — аномалию тоже нужно показать', () => {
+    const s = withGroups()
+    expect(applyCommand(s, { type: 'setAward', payload: { subject: UNGROUPED } })).toBe(true)
+    expect(s.award.subject).toBe(UNGROUPED)
+  })
+
+  it('принимает сброс выбора', () => {
+    const s = withGroups()
+    applyCommand(s, { type: 'setAward', payload: { subject: 'Любители' } })
+    expect(applyCommand(s, { type: 'setAward', payload: { subject: null } })).toBe(true)
+    expect(s.award.subject).toBe(null)
+  })
+
+  it('отвергает неизвестную группу — в кадре не должно быть заголовка без состава', () => {
+    const s = withGroups()
+    expect(applyCommand(s, { type: 'setAward', payload: { subject: 'Ветераны' } })).toBe(false)
+    expect(s.award.subject).toBe(null)
+  })
+})
+
+describe('setRiderGroup', () => {
+  it('перемещает участника в другую группу', () => {
+    const s = withGroups()
+    expect(applyCommand(s, { type: 'setRiderGroup', payload: { participantId: '1', group: 'SB' } })).toBe(true)
+    expect(s.riderGroups['1']).toBe('SB')
+  })
+
+  it('null возвращает участника в группу по его классу', () => {
+    const s = withGroups()
+    applyCommand(s, { type: 'setRiderGroup', payload: { participantId: '1', group: 'SB' } })
+    expect(applyCommand(s, { type: 'setRiderGroup', payload: { participantId: '1', group: null } })).toBe(true)
+    expect(s.riderGroups['1']).toBeUndefined()
+  })
+
+  it('отвергает неизвестную группу и «Вне групп» — она вычисляется, а не хранится', () => {
+    const s = withGroups()
+    expect(applyCommand(s, { type: 'setRiderGroup', payload: { participantId: '1', group: 'Ветераны' } })).toBe(false)
+    expect(applyCommand(s, { type: 'setRiderGroup', payload: { participantId: '1', group: UNGROUPED } })).toBe(false)
+    expect(s.riderGroups).toEqual({})
+  })
+
+  it('отвергает несуществующего участника', () => {
+    const s = withGroups()
+    expect(applyCommand(s, { type: 'setRiderGroup', payload: { participantId: '99', group: 'SB' } })).toBe(false)
+  })
+
+  it('пометка переживает опрос — иначе стёрлась бы через семь секунд', () => {
+    const s = withGroups()
+    applyCommand(s, { type: 'setRiderGroup', payload: { participantId: '1', group: 'SB' } })
+    applyParticipants(s, [rider('1', 'Болдов Иван'), rider('2', 'Петров Илья')])
+    expect(s.riderGroups['1']).toBe('SB')
+  })
+})
+
+describe('UNGROUPED', () => {
+  it('совпадает с константой клиента — сервер не импортирует клиентский код', () => {
+    expect(SERVER_UNGROUPED).toBe(UNGROUPED)
   })
 })
 
