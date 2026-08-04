@@ -146,6 +146,45 @@ describe('applyCommand', () => {
     expect(s.participants[0].attempts[0].time).toBe('00:42.31')
   })
 
+  // Правку снимают, когда она оказалась ошибочной и висит в эфире.
+  // Ждать следующего опроса в этот момент — семь секунд неверных данных.
+  it('снятие правки возвращает значение сайта сразу, не дожидаясь опроса', () => {
+    const s = createDefaultState()
+    applyParticipants(s, [rider('1', 'Болдов Иван')])
+    s.participants[0].attempts = [{ n: 1, time: '01:24.16', penalty: 2 }]
+
+    applyCommand(s, { type: 'manualOverride', payload: { participantId: '1', attempt: 1, field: 'time', value: '01:19.80' } })
+    expect(s.participants[0].attempts[0].time).toBe('01:19.80')
+
+    applyCommand(s, { type: 'manualOverride', payload: { participantId: '1', attempt: 1, field: 'time', value: '' } })
+    expect(s.participants[0].attempts[0].time).toBe('01:24.16')
+    expect(s.overrides).toEqual({})
+    expect(s.originals).toEqual({})
+  })
+
+  it('откат идёт к данным сайта, а не к забракованной промежуточной правке', () => {
+    const s = createDefaultState()
+    applyParticipants(s, [rider('1', 'Болдов Иван')])
+    s.participants[0].attempts = [{ n: 1, time: '01:24.16', penalty: 2 }]
+
+    applyCommand(s, { type: 'manualOverride', payload: { participantId: '1', attempt: 1, field: 'time', value: '01:19.80' } })
+    applyCommand(s, { type: 'manualOverride', payload: { participantId: '1', attempt: 1, field: 'time', value: '01:18.10' } })
+    applyCommand(s, { type: 'manualOverride', payload: { participantId: '1', attempt: 1, field: 'time', value: '' } })
+
+    expect(s.participants[0].attempts[0].time).toBe('01:24.16')
+  })
+
+  it('снятие правки с попытки, которой на сайте не было, очищает значение', () => {
+    const s = createDefaultState()
+    applyParticipants(s, [rider('1', 'Болдов Иван')])
+    s.participants[0].attempts = [{ n: 1, time: '01:24.16', penalty: 2 }]
+
+    applyCommand(s, { type: 'manualOverride', payload: { participantId: '1', attempt: 2, field: 'time', value: '01:19.80' } })
+    applyCommand(s, { type: 'manualOverride', payload: { participantId: '1', attempt: 2, field: 'time', value: '' } })
+
+    expect(s.participants[0].attempts.find(a => a.n === 2).time).toBeNull()
+  })
+
   it('пустое значение снимает правку и возвращает данные сайта', () => {
     const s = createDefaultState()
     const withAttempts = () => {

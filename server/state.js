@@ -33,6 +33,10 @@ export function createDefaultState() {
     // стиралась бы следующим опросом через несколько секунд —
     // то есть ровно тогда, когда она и нужна.
     overrides: {},
+    // Что стояло в ячейке до правки. Снимок нужен, чтобы «Снять правку»
+    // возвращало кадр сразу, а не через семь секунд до следующего опроса:
+    // правку снимают, когда она оказалась ошибочной и висит в эфире.
+    originals: {},
     participants: [],
   }
 }
@@ -172,11 +176,17 @@ export function applyCommand(state, message) {
       const key = overrideKey(payload.participantId, payload.attempt, payload.field)
 
       // Пустое значение снимает правку и возвращает строку под управление
-      // опросчика — иначе ошибочную правку было бы не отменить. Попытку при
-      // этом не заводим: снятие правки не должно оставлять после себя строку,
-      // которой на сайте нет.
+      // опросчика — иначе ошибочную правку было бы не отменить. Значение
+      // сайта возвращаем тут же из снимка: ждать опроса нельзя, ошибочная
+      // правка эти секунды была бы в эфире. Попытку при этом не заводим:
+      // снятие не должно оставлять после себя строку, которой на сайте нет.
       if (payload.value === '' || payload.value === null) {
         delete state.overrides[key]
+
+        const existing = p.attempts?.find(a => a.n === payload.attempt)
+        if (existing && key in state.originals) existing[payload.field] = state.originals[key]
+        delete state.originals[key]
+
         markCorrected(state, p)
         return true
       }
@@ -184,8 +194,15 @@ export function applyCommand(state, message) {
       const value = normalizeOverride(payload.field, payload.value)
       if (value === null) return false
 
+      const attempt = attemptSlot(p, payload.attempt)
+
+      // Снимок берём только на первой правке этого поля: вторая правка
+      // поверх первой должна откатываться к данным сайта, а не к промежуточному
+      // значению, которое оператор уже забраковал.
+      if (!(key in state.originals)) state.originals[key] = attempt[payload.field] ?? null
+
       state.overrides[key] = value
-      attemptSlot(p, payload.attempt)[payload.field] = value
+      attempt[payload.field] = value
       markCorrected(state, p)
       return true
     }
