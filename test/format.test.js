@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseTimeToSeconds, formatDelta, bestOf, groupByClass, topOfClass } from '../app/src/shared/format.js'
+import { parseTimeToSeconds, formatDelta, bestOf, groupByClass, topOfClass, secondsSince } from '../app/src/shared/format.js'
 
 const rider = (over) => ({
   id: '1', sportClass: 'C3', classColor: 'green', number: 1, fio: 'Тест',
@@ -68,6 +68,24 @@ describe('groupByClass', () => {
   it('участник без класса попадает в отдельную группу', () => {
     const groups = groupByClass([rider({ id: 'a', sportClass: '' })])
     expect(groups[0].sportClass).toBe('Без класса')
+  })
+})
+
+// Индикатор свежести — единственный сигнал о том, что сеть легла:
+// оверлей в этот момент продолжает показывать старые данные и выглядит
+// исправным. Поэтому его основа покрыта тестами.
+describe('secondsSince', () => {
+  it('считает возраст данных в секундах', () => {
+    expect(secondsSince(Date.now() - 45_000)).toBe(45)
+  })
+
+  it('свежие данные дают ноль', () => {
+    expect(secondsSince(Date.now())).toBe(0)
+  })
+
+  it('нулевая метка означает «данных ещё не было», а не «обновлено только что»', () => {
+    expect(secondsSince(0)).toBeNull()
+    expect(secondsSince(null)).toBeNull()
   })
 })
 
