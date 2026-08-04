@@ -86,17 +86,37 @@ defineExpose({ focusNumber: () => numberField.value?.focus() })
 
 <style scoped>
 .row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-.label { font-size: 13px; color: #8b949e; }
-.num { width: 90px; font-size: 20px; text-align: center; }
+.label { font-size: 13px; color: var(--ink-faint); }
+.num { width: 92px; font-size: 21px; font-weight: 600; text-align: center; }
 
-.badge { font-size: 12px; padding: 4px 10px; font-weight: 700; letter-spacing: 0.04em; }
-.badge.air { background: #f85149; color: #fff; }
-.badge.prev { background: #21262d; color: #8b949e; }
+.badge {
+  font-size: 11px;
+  font-weight: 640;
+  letter-spacing: 0.05em;
+  padding: 5px 12px;
+  border-radius: var(--r-pill);
+}
 
-.card { background: #0d1117; padding: 12px; margin-bottom: 10px; }
-.line1 { font-size: 16px; font-weight: 700; }
-.line2 { font-size: 13px; color: #8b949e; }
-.hint { font-size: 13px; color: #8b949e; margin-bottom: 10px; }
+/* Красный бейдж — единственный сигнал, что карточка уже в кадре. */
+.badge.air {
+  background: var(--danger);
+  color: #fff;
+  box-shadow: 0 0 16px rgba(255, 69, 58, 0.5);
+}
+
+.badge.prev { background: rgba(255, 255, 255, 0.1); color: var(--ink-faint); }
+
+.card {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--r-md);
+  padding: 13px 15px;
+  margin-bottom: 12px;
+}
+
+.line1 { font-size: 16px; font-weight: 640; }
+.line2 { font-size: 13px; color: var(--ink-faint); margin-top: 2px; }
+.hint { font-size: 13px; color: var(--ink-faint); margin-bottom: 12px; }
 
 .wide { width: 100%; margin-top: 10px; }
 </style>

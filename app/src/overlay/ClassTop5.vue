@@ -42,31 +42,52 @@ const rows = computed(() => {
   position: absolute;
   right: 96px;
   bottom: 120px;
-  width: 480px;
-  padding: 20px 24px;
-  background: rgba(13, 17, 23, 0.88);
-  animation: tower-in 350ms ease-out;
+  width: 490px;
+  padding: 20px 22px 14px;
+  border-radius: var(--r-lg);
+  background: var(--glass-base);
+  background-image: var(--glass);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--glass-shadow), var(--glass-inner);
+  animation: tower-in 420ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 @keyframes tower-in {
-  from { opacity: 0; transform: translateX(32px); }
-  to   { opacity: 1; transform: translateX(0); }
+  from { opacity: 0; transform: translateY(20px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-h3 { font-size: 19px; color: var(--muted); margin-bottom: 12px; font-weight: 600; }
+h3 {
+  font-size: 12px;
+  font-weight: 590;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: 12px;
+}
 
 .line {
   display: grid;
-  grid-template-columns: 28px 1fr 96px 74px;
+  grid-template-columns: 30px 1fr 100px 78px;
   gap: 10px;
-  padding: 6px 0;
+  align-items: baseline;
+  padding: 7px 10px;
+  margin: 0 -10px 2px;
+  border-radius: var(--r-sm);
   font-size: 20px;
-  border-bottom: 1px solid var(--line);
+  font-weight: 450;
 }
 
-.line.current { color: var(--accent); font-weight: 700; }
+/* Текущий райдер выделен так же, как лидер в общей таблице:
+   один язык подсветки на всех сценах. */
+.line.current {
+  background: linear-gradient(90deg, rgba(255, 159, 10, 0.18) 0%, transparent 65%);
+  box-shadow: inset 2px 0 0 var(--accent);
+  font-weight: 600;
+}
+
 .pl { color: var(--accent); font-weight: 700; }
 .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bt { text-align: right; }
-.dl { text-align: right; color: var(--muted); }
+.bt { text-align: right; font-weight: 600; }
+.dl { text-align: right; color: var(--ink-faint); font-size: 18px; }
 </style>

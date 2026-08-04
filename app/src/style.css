@@ -1,14 +1,39 @@
 :root {
-  --bg: #0d1117;
-  --fg: #f0f6fc;
-  --muted: #8b949e;
-  --line: rgba(240, 246, 252, 0.12);
-  --accent: #f5a524;
-  --class-blue: #58a6ff;
-  --class-green: #3fb950;
-  --class-yellow: #d29922;
-  --class-white: #c9d1d9;
-  --class-unknown: #6e7681;
+  /* Системная палитра macOS: акценты взяты один в один, чтобы графика
+     читалась как продолжение интерфейса, а не как его имитация. */
+  --accent: #ff9f0a;
+  --accent-soft: rgba(255, 159, 10, 0.16);
+  --class-blue: #0a84ff;
+  --class-green: #30d158;
+  --class-yellow: #ffd60a;
+  --class-white: #e5e5ea;
+  --class-unknown: #98989d;
+
+  --ink: #ffffff;
+  --ink-dim: rgba(235, 235, 245, 0.62);
+  --ink-faint: rgba(235, 235, 245, 0.34);
+
+  /* Стекло собирается слоями: плотная основа для читаемости, световой
+     градиент сверху и кромка. backdrop-filter здесь бесполезен — OBS
+     подкладывает видео уже после браузера, размывать нечего. */
+  --glass: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.14) 0%,
+    rgba(255, 255, 255, 0.06) 100%
+  );
+  /* 88% — компромисс: стекло ещё читается как материал, но текст
+     не теряет контраст, если под ним окажется светлое небо или асфальт.
+     Проверить освещение на площадке будет негде, поэтому с запасом. */
+  --glass-base: rgba(18, 22, 28, 0.88);
+  --glass-edge: rgba(255, 255, 255, 0.16);
+  --glass-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  --glass-inner: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+
+  --r-xl: 32px;
+  --r-lg: 24px;
+  --r-md: 18px;
+  --r-sm: 12px;
+  --r-pill: 999px;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -18,18 +43,38 @@ html, body, #app {
   height: 1080px;
   overflow: hidden;
   background: transparent;
-  font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
-  color: var(--fg);
+  color: var(--ink);
+  font-family: -apple-system, 'SF Pro Display', 'SF Pro Text', 'Inter',
+    'Helvetica Neue', sans-serif;
+  font-feature-settings: 'ss01', 'cv01';
   -webkit-font-smoothing: antialiased;
 }
 
 .tabular { font-variant-numeric: tabular-nums; }
 
-.scene-enter-active, .scene-leave-active { transition: opacity 350ms ease-out; }
-.scene-enter-from, .scene-leave-to { opacity: 0; }
+/* Поверхность из матового стекла — базовый материал всей графики. */
+.surface {
+  background: var(--glass-base);
+  background-image: var(--glass);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--glass-shadow), var(--glass-inner);
+}
 
-.row-move { transition: transform 400ms ease-out; }
-.row-enter-active { transition: opacity 350ms ease-out, transform 350ms ease-out; }
-.row-leave-active { position: absolute; transition: opacity 250ms ease-in; }
-.row-enter-from { opacity: 0; transform: translateX(-24px); }
+.scene-enter-active,
+.scene-leave-active { transition: opacity 400ms cubic-bezier(0.32, 0.72, 0, 1); }
+.scene-enter-from,
+.scene-leave-to { opacity: 0; }
+
+/* Пружина вместо линейного хода: движение материала, а не смена кадра. */
+.row-move { transition: transform 480ms cubic-bezier(0.32, 0.72, 0, 1); }
+.row-enter-active { transition: opacity 400ms ease-out, transform 400ms cubic-bezier(0.32, 0.72, 0, 1); }
+.row-leave-active { position: absolute; transition: opacity 260ms ease-in; }
+.row-enter-from { opacity: 0; transform: translateY(-12px) scale(0.98); }
 .row-leave-to { opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

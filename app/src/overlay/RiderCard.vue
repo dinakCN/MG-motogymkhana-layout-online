@@ -28,34 +28,62 @@ defineProps({
   bottom: 120px;
   min-width: 620px;
   max-width: 900px;
-  padding: 28px 36px;
-  background: rgba(13, 17, 23, 0.92);
-  border-left: 6px solid var(--accent);
-  animation: card-in 350ms ease-out;
+  padding: 30px 38px;
+  border-radius: var(--r-xl);
+  background: var(--glass-base);
+  background-image: var(--glass);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--glass-shadow), var(--glass-inner);
+  animation: card-in 420ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 @keyframes card-in {
-  from { opacity: 0; transform: translateX(-32px); }
-  to   { opacity: 1; transform: translateX(0); }
+  from { opacity: 0; transform: translateY(20px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-.head { display: flex; align-items: center; gap: 16px; margin-bottom: 10px; }
+.head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
 
 .cls {
   background: var(--accent);
-  color: #0d1117;
+  color: #0a0d12;
   font-weight: 700;
-  font-size: 22px;
-  padding: 3px 14px;
+  font-size: 20px;
+  padding: 4px 16px;
+  border-radius: var(--r-pill);
 }
 
-.num { font-size: 22px; color: var(--muted); }
-.attempt { font-size: 20px; color: var(--muted); margin-left: auto; }
+.num {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--ink);
+  padding: 4px 14px;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.attempt {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--ink-dim);
+  margin-left: auto;
+}
 
 /* Длинные названия мотоциклов есть в данных («Honda CBR Frankenstein RR»),
    поэтому переносим, а не обрезаем жёсткой шириной. */
-.fio { font-size: 46px; font-weight: 700; line-height: 1.1; }
-.city { font-size: 26px; color: var(--muted); margin-top: 4px; }
-.moto { font-size: 24px; margin-top: 10px; overflow-wrap: anywhere; }
-.caption { font-size: 22px; color: var(--accent); margin-top: 12px; }
+.fio { font-size: 48px; font-weight: 700; line-height: 1.06; letter-spacing: -0.02em; }
+.city { font-size: 25px; color: var(--ink-dim); margin-top: 6px; }
+.moto { font-size: 23px; color: var(--ink-dim); margin-top: 12px; overflow-wrap: anywhere; }
+
+.caption {
+  display: inline-block;
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--accent);
+  margin-top: 16px;
+  padding: 6px 16px;
+  border-radius: var(--r-pill);
+  background: var(--accent-soft);
+}
 </style>

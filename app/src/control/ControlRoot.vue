@@ -126,16 +126,28 @@ function hideHighlight() {
 <style scoped>
 .main {
   display: grid;
-  grid-template-columns: 400px 1fr;
-  gap: 12px;
-  padding: 12px;
+  grid-template-columns: 404px 1fr;
+  gap: 14px;
+  padding: 10px 16px 16px;
   overflow: hidden;
 }
 
-.left, .right { display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
-.left { overflow-y: auto; }
+.left, .right { display: flex; flex-direction: column; gap: 14px; overflow: hidden; }
+.left { overflow-y: auto; padding-right: 2px; }
 .search-panel { flex: none; }
 .list-panel { padding: 0; flex: 1; overflow: hidden; }
 
-.loading { display: flex; align-items: center; justify-content: center; font-size: 18px; }
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  color: var(--ink-dim);
+}
+
+.left::-webkit-scrollbar { width: 8px; }
+.left::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: var(--r-pill);
+}
 </style>

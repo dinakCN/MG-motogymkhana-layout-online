@@ -53,6 +53,6 @@ function update(patch) {
 
 <style scoped>
 .row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
-.label { font-size: 13px; color: #8b949e; }
+.label { font-size: 13px; color: var(--ink-faint); }
 .check { display: flex; align-items: center; gap: 8px; font-size: 14px; margin-top: 12px; cursor: pointer; }
 </style>

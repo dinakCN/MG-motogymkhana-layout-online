@@ -30,16 +30,33 @@ const text = computed(() => TEXTS[props.state.round] || TEXTS.break1)
 .break {
   width: 100%;
   height: 100%;
-  background: linear-gradient(160deg, #0d1117 0%, #161b22 100%);
+  background:
+    radial-gradient(90% 60% at 50% 30%, rgba(255, 159, 10, 0.14) 0%, transparent 65%),
+    linear-gradient(170deg, #10141a 0%, #0a0d12 100%);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 18px;
+  gap: 16px;
 }
 
-.logo { height: 140px; margin-bottom: 24px; }
-h1 { font-size: 76px; font-weight: 700; }
-p { font-size: 32px; color: var(--muted); }
-.event { font-size: 24px; margin-top: 40px; }
+.logo { height: 132px; margin-bottom: 28px; }
+
+h1 {
+  font-size: 72px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+p { font-size: 30px; color: var(--ink-dim); }
+
+.event {
+  font-size: 20px;
+  color: var(--ink-faint);
+  margin-top: 44px;
+  padding: 8px 24px;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
 </style>

@@ -77,19 +77,27 @@ const rows = computed(() => groups.value.map(group => ({
         :class="{ scrolling: needsScroll }"
         :style="{ '--shift': `${shift}px`, '--duration': `${duration}s` }"
       >
-        <section v-for="group in rows" :key="group.sportClass" class="group">
+        <section v-for="group in rows" :key="group.sportClass" class="group surface">
           <!-- Подписи колонок живут в шапке класса: так они выровнены над
                своими колонками и не съедают отдельную строку высоты. -->
-          <h2 :class="`color-${group.classColor}`">
-            <span class="cls">{{ group.sportClass }}</span>
+          <h2>
+            <span class="cls" :class="`color-${group.classColor}`">{{ group.sportClass }}</span>
             <span class="cap">Поп. 1</span>
             <span class="cap">Поп. 2</span>
             <span class="cap">Лучшее</span>
           </h2>
 
           <TransitionGroup name="row" tag="div">
-            <div v-for="row in group.riders" :key="row.rider.id" class="row">
-              <span class="place tabular">{{ row.rider.placeInClass ?? '—' }}</span>
+            <div
+              v-for="row in group.riders"
+              :key="row.rider.id"
+              class="row"
+              :class="{ leader: row.rider.placeInClass === 1 }"
+            >
+              <span
+                class="place tabular"
+                :class="{ empty: row.rider.placeInClass == null }"
+              >{{ row.rider.placeInClass ?? '—' }}</span>
               <span class="num tabular">{{ row.rider.number ?? '—' }}</span>
               <span class="name">{{ row.rider.fio }}</span>
               <span
@@ -111,15 +119,23 @@ const rows = computed(() => groups.value.map(group => ({
   width: 100%;
   height: 100%;
   /* Плотная подложка: десятки строк поверх светлого асфальта нечитаемы,
-     а проверить освещение на площадке будет негде. */
-  background: linear-gradient(160deg, #0d1117 0%, #161b22 100%);
-  padding: 32px 48px;
+     а проверить освещение на площадке будет негде. Мягкое тёплое свечение
+     сверху не даёт фону читаться как плоская заливка. */
+  background:
+    radial-gradient(120% 80% at 50% -10%, rgba(255, 159, 10, 0.13) 0%, transparent 60%),
+    linear-gradient(170deg, #10141a 0%, #0a0d12 100%);
+  padding: 36px 52px;
   display: flex;
   flex-direction: column;
 }
 
-header { position: relative; margin-bottom: 24px; }
-h1 { font-size: 34px; font-weight: 700; letter-spacing: -0.01em; }
+header { position: relative; margin-bottom: 26px; }
+
+h1 {
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
 
 .body { flex: 1; overflow: hidden; }
 
@@ -161,60 +177,86 @@ h1 { font-size: 34px; font-weight: 700; letter-spacing: -0.01em; }
   88%, 100% { transform: translateY(calc(-1 * var(--shift))); }
 }
 
-/* Класс никогда не разрывается между колонками — браузер разливает
-   и балансирует группы сам, без алгоритма на нашей стороне. */
-.group { break-inside: avoid; margin-bottom: 20px; }
+/* Каждый класс — отдельная стеклянная плашка. Класс никогда не рвётся
+   между колонками: браузер разливает и балансирует группы сам. */
+.group {
+  break-inside: avoid;
+  margin-bottom: 18px;
+  padding: 14px 18px 10px;
+  border-radius: var(--r-lg);
+}
 
 h2 {
   display: grid;
-  grid-template-columns: 34px 44px 1fr 104px 104px 104px;
+  grid-template-columns: 38px 46px 1fr 108px 108px 112px;
   gap: 10px;
-  align-items: baseline;
-  font-size: 20px;
-  font-weight: 700;
-  padding-bottom: 6px;
+  align-items: center;
   margin-bottom: 8px;
-  border-bottom: 2px solid currentColor;
 }
 
-.cls { grid-column: 1 / 4; }
+/* Буква класса — цветная пилюля, а не подчёркнутый заголовок: цвет на
+   сайте не различает D1–D4, поэтому буква обязана быть заметной. */
+.cls {
+  grid-column: 1 / 4;
+  justify-self: start;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  padding: 4px 14px;
+  border-radius: var(--r-pill);
+  color: #0a0d12;
+}
 
 .cap {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-size: 11px;
+  font-weight: 590;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   text-align: right;
-  color: var(--muted);
+  color: var(--ink-faint);
 }
 
-.color-blue { color: var(--class-blue); }
-.color-green { color: var(--class-green); }
-.color-yellow { color: var(--class-yellow); }
-.color-white { color: var(--class-white); }
-.color-unknown { color: var(--class-unknown); }
+.color-blue { background: var(--class-blue); color: #fff; }
+.color-green { background: var(--class-green); }
+.color-yellow { background: var(--class-yellow); }
+.color-white { background: var(--class-white); }
+.color-unknown { background: var(--class-unknown); color: #fff; }
 
 .row {
   display: grid;
-  grid-template-columns: 34px 44px 1fr 104px 104px 104px;
+  grid-template-columns: 38px 46px 1fr 108px 108px 112px;
   gap: 10px;
   align-items: baseline;
-  padding: 7px 0;
-  border-bottom: 1px solid var(--line);
+  padding: 8px 10px;
+  margin: 0 -10px;
+  border-radius: var(--r-sm);
   font-size: 21px;
+  font-weight: 450;
+}
+
+/* Лидер отмечен затухающим бликом от левого края, а не сплошной заливкой:
+   в классе из одного участника заливка красила бы всю плашку и давила. */
+.row.leader {
+  background: linear-gradient(90deg, rgba(255, 159, 10, 0.15) 0%, transparent 55%);
+  box-shadow: inset 2px 0 0 var(--accent);
 }
 
 .place { color: var(--accent); font-weight: 700; }
-.num { color: var(--muted); }
+
+/* До появления результатов мест нет у всех сразу — акцентный цвет
+   превратил бы колонку прочерков в шум. */
+.place.empty { color: var(--ink-faint); font-weight: 450; }
+.num { color: var(--ink-faint); }
 .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* nowrap обязателен: без него штраф уезжает на вторую строку
    и строки начинают скакать по высоте. */
-.time { color: var(--muted); text-align: right; white-space: nowrap; }
+.time { color: var(--ink-dim); text-align: right; white-space: nowrap; }
 
 .pen {
-  font-size: 14px;
+  font-size: 13px;
   font-style: normal;
+  font-weight: 600;
   color: var(--accent);
   margin-left: 5px;
 }

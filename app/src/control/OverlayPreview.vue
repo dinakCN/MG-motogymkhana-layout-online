@@ -20,7 +20,8 @@
   /* Тёмная клетка: видно, где у оверлея прозрачный фон, а где подложка. */
   background:
     repeating-conic-gradient(#1c2128 0 25%, #22272e 0 50%) 0 0 / 24px 24px;
-  border: 1px solid rgba(240, 246, 252, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--r-md);
 }
 
 iframe {

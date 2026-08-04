@@ -64,24 +64,40 @@ const ROUNDS = {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 18px;
-  background: #161b22;
-  border-bottom: 1px solid rgba(240, 246, 252, 0.1);
+  margin: 14px 16px 0;
+  padding: 11px 18px;
+  background: rgba(28, 32, 40, 0.72);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  backdrop-filter: blur(30px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--r-pill);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.14);
   font-size: 14px;
+  color: var(--ink-dim);
 }
 
-.dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
-.dot.ok { background: #3fb950; }
-.dot.warn { background: #d29922; }
-.dot.bad { background: #f85149; }
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+  transition: background 300ms ease, box-shadow 300ms ease;
+}
 
-.sep { color: #8b949e; }
-.warn { color: #f85149; font-weight: 700; }
+.dot.ok { background: var(--ok); box-shadow: 0 0 10px rgba(48, 209, 88, 0.7); }
+.dot.warn { background: var(--warn); box-shadow: 0 0 10px rgba(255, 214, 10, 0.7); }
+.dot.bad { background: var(--danger); box-shadow: 0 0 12px rgba(255, 69, 58, 0.8); }
 
+.sep { color: var(--ink-faint); }
+.warn { color: var(--danger); font-weight: 640; }
+
+/* Не боевой этап — единственное, что подсвечивается в этой строке:
+     провести эфир на данных полигона — самая обидная ошибка дня. */
 .stage.rehearsal {
-  background: #d29922;
-  color: #0d1117;
-  font-weight: 700;
-  padding: 2px 10px;
+  background: var(--warn);
+  color: #0a0d12;
+  font-weight: 640;
+  padding: 3px 12px;
+  border-radius: var(--r-pill);
 }
 </style>

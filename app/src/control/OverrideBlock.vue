@@ -73,7 +73,7 @@ function reset() {
 .toggle {
   background: none;
   border: 0;
-  color: #8b949e;
+  color: var(--ink-faint);
   font-size: 13px;
   font-family: inherit;
   cursor: pointer;
@@ -81,9 +81,9 @@ function reset() {
 }
 
 .body { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
-.warn { font-size: 12px; color: #d29922; }
+.warn { font-size: 12px; color: var(--warn); }
 .who { font-size: 13px; }
 .row { display: flex; gap: 8px; }
 .grow { flex: 1; }
-.note { font-size: 11px; color: #8b949e; }
+.note { font-size: 11px; color: var(--ink-faint); }
 </style>

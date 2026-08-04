@@ -42,12 +42,12 @@ onUnmounted(() => clearTimeout(hideTimer))
       <button class="btn primary" :disabled="!rider" @click="show">
         Показать {{ Math.round(timeout / 1000) }} с
       </button>
-      <button class="btn danger" @click="hide">Скрыть</button>
+      <button class="btn" @click="hide">Скрыть</button>
     </div>
   </div>
 </template>
 
 <style scoped>
-.who { font-size: 14px; margin-bottom: 10px; }
+.who { font-size: 14px; margin-bottom: 12px; color: var(--ink-dim); }
 .row { display: flex; gap: 8px; margin-top: 10px; }
 </style>

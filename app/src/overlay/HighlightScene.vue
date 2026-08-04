@@ -24,24 +24,35 @@ const rider = computed(
   position: absolute;
   left: 96px;
   bottom: 140px;
-  animation: lt-in 350ms ease-out;
+  animation: lt-in 420ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 @keyframes lt-in {
-  from { opacity: 0; transform: translateY(28px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(26px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .bar {
   display: flex;
   align-items: center;
-  gap: 28px;
-  padding: 20px 36px;
-  background: rgba(13, 17, 23, 0.94);
-  border-left: 6px solid var(--accent);
+  gap: 26px;
+  padding: 18px 28px;
+  border-radius: var(--r-pill);
+  background: var(--glass-base);
+  background-image: var(--glass);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--glass-shadow), var(--glass-inner);
 }
 
-.tag { background: var(--accent); color: #0d1117; font-weight: 700; font-size: 20px; padding: 4px 14px; }
-.fio { font-size: 40px; font-weight: 700; }
-.time { font-size: 40px; font-weight: 700; color: var(--accent); }
+.tag {
+  background: var(--accent);
+  color: #0a0d12;
+  font-weight: 700;
+  font-size: 18px;
+  padding: 6px 18px;
+  border-radius: var(--r-pill);
+}
+
+.fio { font-size: 38px; font-weight: 700; letter-spacing: -0.02em; }
+.time { font-size: 38px; font-weight: 700; color: var(--accent); padding-right: 8px; }
 </style>
