@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { rmSync, writeFileSync } from 'node:fs'
 import { bestOf } from '../app/src/shared/format.js'
-import { UNGROUPED } from '../app/src/shared/awardGroups.js'
-import { createDefaultState, applyParticipants, applyCommand, saveState, loadState, normalizeOverride, UNGROUPED as SERVER_UNGROUPED } from '../server/state.js'
+import { UNGROUPED, podiumOf } from '../app/src/shared/awardGroups.js'
+import { createDefaultState, applyParticipants, applyCommand, saveState, loadState, normalizeOverride, UNGROUPED as SERVER_UNGROUPED, PODIUM_PLACES } from '../server/state.js'
 
 const rider = (id, fio) => ({
   id, athleteId: id, sportClass: 'C3', classColor: 'green', number: 28,
@@ -408,6 +408,48 @@ describe('setAward', () => {
     applyCommand(s, { type: 'setAward', payload: { subject: 'Любители' } })
     expect(applyCommand(s, { type: 'setAward', payload: { subject: null } })).toBe(true)
     expect(s.award.subject).toBe(null)
+  })
+
+  // Место 99 сервер принимал молча, и кадр показывал «призёры появятся,
+  // когда будут результаты» при том, что результаты есть.
+  it('отвергает место, которого нет на подиуме', () => {
+    const s = withGroups()
+    applyCommand(s, { type: 'setAward', payload: { subject: 'Любители', place: 2 } })
+
+    for (const place of [0, -1, 99, PODIUM_PLACES + 1, 1.5, '2', 'первое', NaN]) {
+      expect(applyCommand(s, { type: 'setAward', payload: { subject: 'Любители', place } }), String(place)).toBe(false)
+    }
+    expect(s.award.place).toBe(2)
+  })
+
+  it('принимает все места подиума и пустое место как первое', () => {
+    const s = withGroups()
+
+    for (let place = 1; place <= PODIUM_PLACES; place += 1) {
+      expect(applyCommand(s, { type: 'setAward', payload: { subject: 'Любители', place } })).toBe(true)
+      expect(s.award.place).toBe(place)
+    }
+
+    // Пустое место — «не задано», а не ошибка: пульт присылает его,
+    // когда переключает группу, не трогая выбор места.
+    for (const place of [undefined, null]) {
+      expect(applyCommand(s, { type: 'setAward', payload: { subject: 'Любители', place } })).toBe(true)
+      expect(s.award.place).toBe(1)
+    }
+  })
+
+  // Сервер валидирует место, призёров отбирает клиентский модуль — эти
+  // два числа обязаны совпадать, иначе третье место окажется недостижимым
+  // или четвёртый призёр не получит места.
+  it('мест на подиуме столько же, сколько призёров отдаёт podiumOf', () => {
+    const riders = Array.from({ length: 6 }, (_, i) => ({
+      id: String(i), fio: 'Гонщик ' + i, sportClass: 'D2',
+      attempts: [{ n: 1, time: `01:${String(20 + i).padStart(2, '0')}.00`, penalty: 0 }],
+      bestTime: null,
+    }))
+
+    const podium = podiumOf(riders, 'Любители', [{ name: 'Любители', classes: ['D2'] }], {})
+    expect(podium).toHaveLength(PODIUM_PLACES)
   })
 
   it('отвергает неизвестную группу — в кадре не должно быть заголовка без состава', () => {

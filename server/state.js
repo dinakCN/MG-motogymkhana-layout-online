@@ -15,6 +15,10 @@ export const ROUNDS = ['round1', 'break1', 'round2', 'final', 'break2', 'awards'
 // сервер молча отвергал бы команду пульта показать этих участников.
 export const UNGROUPED = 'Вне групп'
 
+// Мест на подиуме три. Столько же призёров отдаёт podiumOf
+// (app/src/shared/awardGroups.js) — совпадение стережёт тест.
+export const PODIUM_PLACES = 3
+
 export function createDefaultState() {
   return {
     eventTitle: 'Чемпионат Новосибирской области по мотоджимхане 2026',
@@ -183,11 +187,13 @@ export function applyCommand(state, message) {
         || (state.awardGroups ?? []).some(g => g.name === subject)
       if (!known) return false
 
-      state.award = {
-        subject,
-        place: payload?.place ?? 1,
-        showAllThree: Boolean(payload?.showAllThree),
-      }
+      // Место на подиуме — 1, 2 или 3, других не бывает. Приняв, скажем,
+      // 99, сервер отдал бы в кадр пустую сцену с надписью «призёры
+      // появятся, когда будут результаты» — при том, что результаты есть.
+      const place = payload?.place ?? 1
+      if (!Number.isInteger(place) || place < 1 || place > PODIUM_PLACES) return false
+
+      state.award = { subject, place, showAllThree: Boolean(payload?.showAllThree) }
       return true
     }
 
