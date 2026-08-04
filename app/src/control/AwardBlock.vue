@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { groupsWithCounts, podiumOf } from '../shared/awardGroups.js'
+import { groupsWithCounts, podiumOf, clampPlace } from '../shared/awardGroups.js'
 import { bestOf } from '../shared/format.js'
 
 const props = defineProps({
@@ -21,8 +21,20 @@ const podium = computed(
   () => podiumOf(props.participants, props.award.subject, props.awardGroups, props.riderGroups),
 )
 
+// Место, на которое в группе некого поставить, недоступно и не считается
+// выбранным: иначе подсветка показывала бы выбор, которого в кадре нет.
+const hasPlace = place => place <= podium.value.length
+
 function update(patch) {
   emit('change', { ...props.award, ...patch })
+}
+
+// Смена группы переносит выбранное место, но не дальше, чем есть призёры:
+// после перехода со Спортсменов, где вели третье место, на группу из одного
+// человека в кадре осталось бы выбрано третье — то есть пустота.
+function pickGroup(name) {
+  const next = podiumOf(props.participants, name, props.awardGroups, props.riderGroups)
+  update({ subject: name, place: clampPlace(props.award.place, next.length) })
 }
 </script>
 
@@ -33,7 +45,7 @@ function update(patch) {
     <select
       class="input"
       :value="award.subject ?? ''"
-      @change="update({ subject: $event.target.value || null })"
+      @change="pickGroup($event.target.value || null)"
     >
       <option value="">— группа —</option>
       <option v-for="g in groups" :key="g.name" :value="g.name">
@@ -55,13 +67,14 @@ function update(patch) {
       <!-- Церемонию ведут с третьего места. В Круизере и SB призёров
            может быть один-два: кнопка без пары в podium гасится, иначе
            оператор жмёт «3» и в кадр уезжает «призёров пока нет», хотя
-           они уже стоят в зале. -->
+           они уже стоят в зале. Порядок кнопок постоянный — их гасят,
+           а не убирают: оператор жмёт по месту, не глядя. -->
       <button
         v-for="place in [3, 2, 1]"
         :key="place"
         class="btn"
-        :class="{ primary: !award.showAllThree && award.place === place }"
-        :disabled="place > podium.length"
+        :class="{ primary: !award.showAllThree && award.place === place && hasPlace(place) }"
+        :disabled="!hasPlace(place)"
         @click="update({ place, showAllThree: false })"
       >{{ place }}</button>
     </div>

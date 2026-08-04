@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  UNGROUPED, groupOf, groupsWithCounts, ridersOfGroup, podiumOf,
+  UNGROUPED, groupOf, groupsWithCounts, ridersOfGroup, podiumOf, clampPlace,
 } from '../app/src/shared/awardGroups.js'
 
 const GROUPS = [
@@ -133,5 +133,29 @@ describe('podiumOf', () => {
     const list = [rider('1', 'D2', '00:44.15'), rider('2', 'D3', '00:42.31')]
     expect(podiumOf(list, 'SB', GROUPS, { 2: 'SB' }).map(r => r.id)).toEqual(['2'])
     expect(podiumOf(list, 'Любители', GROUPS, { 2: 'SB' }).map(r => r.id)).toEqual(['1'])
+  })
+})
+
+describe('clampPlace', () => {
+  it('оставляет место, на которое призёр есть', () => {
+    expect(clampPlace(3, 3)).toBe(3)
+    expect(clampPlace(2, 3)).toBe(2)
+    expect(clampPlace(1, 1)).toBe(1)
+  })
+
+  it('прижимает к числу призёров — переход на группу, где людей меньше', () => {
+    expect(clampPlace(3, 1)).toBe(1)
+    expect(clampPlace(3, 2)).toBe(2)
+    expect(clampPlace(2, 1)).toBe(1)
+  })
+
+  it('пустая группа даёт первое место: других сервер не принимает', () => {
+    expect(clampPlace(3, 0)).toBe(1)
+    expect(clampPlace(1, 0)).toBe(1)
+  })
+
+  it('место ниже первого не появляется даже из испорченного состояния', () => {
+    expect(clampPlace(0, 3)).toBe(1)
+    expect(clampPlace(-2, 3)).toBe(1)
   })
 })

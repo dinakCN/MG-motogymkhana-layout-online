@@ -70,3 +70,12 @@ export function podiumOf(participants = [], subject, groups = [], riderGroups = 
     .filter(rider => bestSeconds(rider) !== null)
     .slice(0, 3)
 }
+
+// Место, которое останется осмысленным в другой группе. Церемонию ведут
+// с третьего места, но в Круизере и SB призёров может быть один-два, и
+// перенос выбранного третьего места на такую группу оставил бы в кадре
+// надпись «призёры появятся» вместо победителя, который стоит в зале.
+// Пустая группа даёт первое место: других сервер не принимает.
+export function clampPlace(place, podiumSize) {
+  return Math.min(Math.max(place, 1), Math.max(podiumSize, 1))
+}
