@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { topOfClass, bestOf, bestSeconds, formatDelta, fractionDigits, DNF_LABEL } from '../shared/format.js'
+import { topOfClass, bestOf, bestSeconds, formatDelta, fractionDigits, NO_RESULT_LABELS } from '../shared/format.js'
 
 const props = defineProps({
   participants: { type: Array, required: true },
@@ -27,7 +27,7 @@ const rows = computed(() => {
     return {
       rider,
       best: label ?? '—',
-      dnf: label === DNF_LABEL,
+      dnf: NO_RESULT_LABELS.includes(label),
       delta: formatDelta(delta, fractionDigits(label)),
     }
   })

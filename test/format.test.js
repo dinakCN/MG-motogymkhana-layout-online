@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import {
   parseTimeToSeconds, formatSeconds, formatDelta, isDnf, attemptTotal,
   bestSeconds, bestOf, attemptLabel, groupByClass, topOfClass, secondsSince,
-  fractionDigits, DNF_LABEL,
+  fractionDigits, DNF_LABEL, NOT_COUNTED_LABEL,
 } from '../app/src/shared/format.js'
 import { parseStage } from '../server/parser.js'
 
@@ -101,13 +101,31 @@ describe('сход', () => {
     expect(bestSeconds(p)).toBeCloseTo(103, 2)
   })
 
-  it('заваленные все попытки — результата нет', () => {
+  // Трассу прошёл дважды, зачли ноль раз — это не сход. Спортсмену
+  // разница видна, и назвать это сходом в эфире значит соврать о заезде.
+  it('все попытки не зачтены при пройденной трассе — «незачёт», а не «сход»', () => {
     const p = rider({ attempts: [
       { n: 1, time: '01:19.00', penalty: 0, scratched: true },
       { n: 2, time: '01:43.00', penalty: 0, scratched: true },
     ] })
     expect(bestSeconds(p)).toBeNull()
+    expect(bestOf(p)).toBe(NOT_COUNTED_LABEL)
+  })
+
+  it('не доехал ни разу — «сход»', () => {
+    const p = rider({ attempts: [
+      { n: 1, time: '59:59.99', penalty: 0, scratched: true },
+      { n: 2, time: '59:59.99', penalty: 0, scratched: true },
+    ] })
     expect(bestOf(p)).toBe(DNF_LABEL)
+  })
+
+  it('незачёт и сход вместе — «незачёт»: трасса всё-таки пройдена', () => {
+    const p = rider({ attempts: [
+      { n: 1, time: '01:19.00', penalty: 0, scratched: true },
+      { n: 2, time: '59:59.99', penalty: 0 },
+    ] })
+    expect(bestOf(p)).toBe(NOT_COUNTED_LABEL)
   })
 
   it('сход в готовом значении сайта тоже становится словом', () => {

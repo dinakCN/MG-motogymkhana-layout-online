@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, watch, nextTick } from 'vue'
-import { groupByClass, bestOf, attemptLabel, isDnf, isScratched, DNF_LABEL } from '../shared/format.js'
+import { groupByClass, bestOf, attemptLabel, isDnf, isScratched, NO_RESULT_LABELS } from '../shared/format.js'
 import LogoBug from './LogoBug.vue'
 
 const props = defineProps({ state: { type: Object, required: true } })
@@ -70,7 +70,7 @@ const rows = computed(() => groups.value.map(group => ({
       }
     }),
     best: bestOf(rider) ?? '—',
-    dnf: bestOf(rider) === DNF_LABEL,
+    dnf: NO_RESULT_LABELS.includes(bestOf(rider)),
   })),
 })))
 </script>

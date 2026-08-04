@@ -1,7 +1,15 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { parseStage } from '../server/parser.js'
+import { parseStage, LAYOUT } from '../server/parser.js'
 import { bestOf, bestSeconds, topOfClass } from '../app/src/shared/format.js'
+import { podiumOf } from '../app/src/shared/awardGroups.js'
+
+// На странице этапа два зачёта: наш — по классам, второй — по группам
+// награждения (Новички, Любители, Спортсмены, ПРО) со своими местами.
+// Второй разбираем тем же парсером через подмену селектора и сверяем
+// с ним подиумы: это единственный способ проверить награждение на
+// настоящих данных, а не на придуманных.
+const CATEGORIES = { ...LAYOUT, table: 'div.show-pk table.results:not(.results-with-img)' }
 
 // Сверка порядка с официальным протоколом. Места расставляет сайт, но
 // топ-5 класса в кадре выстраиваем мы — и до того, как сайт проставит
@@ -79,6 +87,40 @@ describe.each(STAGES)('этап %s — порядок совпадает с пр
       .filter(x => x.сайт !== x.наш)
 
     expect(расхождения).toEqual([])
+  })
+})
+
+describe.each(STAGES)('этап %s — подиум группы совпадает с протоколом', (id) => {
+  const html = readFileSync(new URL(`./fixtures/stage${id}.html`, import.meta.url), 'utf-8')
+  const list = parseStage(html)
+  const cats = parseStage(html, CATEGORIES)
+  const names = [...new Set(cats.map(p => p.sportClass))]
+
+  it('второй зачёт разобран и групп в нём несколько', () => {
+    expect(cats.length).toBe(list.length)
+    expect(names.length).toBeGreaterThan(2)
+  })
+
+  it.each(names.length ? names : ['—'])('группа «%s»', (name) => {
+    const состав = cats.filter(c => c.sportClass === name).map(c => c.fio)
+    const участники = list.filter(p => состав.includes(p.fio))
+
+    // Состав задаём вручную: на этих этапах группы другие, чем в боевом
+    // конфиге, и берём мы их из самого протокола.
+    const наш = podiumOf(
+      участники,
+      name,
+      [{ name, classes: [] }],
+      Object.fromEntries(участники.map(p => [p.id, name])),
+    ).map(p => p.fio)
+
+    const сайт = cats
+      .filter(c => c.sportClass === name && c.placeInClass != null)
+      .sort((a, b) => a.placeInClass - b.placeInClass)
+      .slice(0, 3)
+      .map(c => c.fio)
+
+    expect(наш).toEqual(сайт)
   })
 })
 
