@@ -1,3 +1,26 @@
+// ────────────────────────────────────────────────────────────────────────
+// Арифметика результата. Проверена на протоколе этапа 670 (test/fixtures):
+// у всех участников наш расчёт совпадает с тем, что посчитал сайт.
+//
+// Два правила, снятые с реальных данных:
+//   1. Результат попытки = время + штраф, штраф в секундах.
+//      Стажко: 01:21.61 + 1 → сайт показывает 01:22.61.
+//   2. Сход записывается как 59:59.99 и в зачёт не идёт.
+//      Буланов: 01:38.80+4 и 59:59.99 → сайт показывает 01:42.80.
+// ────────────────────────────────────────────────────────────────────────
+
+export const DNF_LABEL = 'сход'
+
+// Всё, что дольше десяти минут, — не заезд. Так на сайте помечают
+// незавершённую попытку (59:59.99), и порог с запасом накрывает любую
+// подобную заглушку: самый долгий реальный заезд в протоколе — 3:47.
+const NOT_A_RESULT_FROM = 600
+
+// Точность не зашита: хронометраж ведут до десятитысячных, а сайт сегодня
+// печатает сотые. Разбираем сколько дали и столько же возвращаем — округлять
+// чужой результат до привычных двух знаков мы не вправе.
+const MAX_FRACTION_DIGITS = 4
+
 export function parseTimeToSeconds(value) {
   if (!value) return null
   const match = String(value).match(/^(\d+):(\d+)\.(\d+)$/)
@@ -6,26 +29,107 @@ export function parseTimeToSeconds(value) {
   return Number(mm) * 60 + Number(ss) + Number(`0.${frac}`)
 }
 
-export function formatDelta(seconds) {
-  if (seconds === null || seconds === undefined) return '—'
-  if (seconds === 0) return '—'
-  return `+${seconds.toFixed(2)}`
+// Сколько знаков после точки в записи времени: 01:23.72 → 2, 01:23.7215 → 4.
+export function fractionDigits(time) {
+  const frac = String(time ?? '').match(/^\d+:\d+\.(\d+)$/)?.[1]
+  return frac ? Math.min(frac.length, MAX_FRACTION_DIGITS) : 2
 }
 
-// Лучшее время берём готовым с сайта: расходиться с официальным
-// протоколом в прямом эфире недопустимо. Считаем сами только когда
-// сайт значение ещё не проставил.
-export function bestOf(participant) {
-  if (participant.bestTime) return participant.bestTime
+export function formatSeconds(seconds, digits = 2) {
+  if (seconds === null || seconds === undefined || Number.isNaN(seconds)) return null
 
+  const d = Math.min(Math.max(digits, 1), MAX_FRACTION_DIGITS)
+
+  // Округляем до нужного знака ДО разбора на минуты: 59.999 иначе дало бы
+  // «60.00» в секундах вместо «01:00.00».
+  const scale = 10 ** d
+  const total = Math.round(seconds * scale) / scale
+  const mm = Math.floor(total / 60)
+  const ss = total - mm * 60
+
+  return `${String(mm).padStart(2, '0')}:${ss.toFixed(d).padStart(d + 3, '0')}`
+}
+
+// Сход — не медленный заезд, а его отсутствие. Показывать 59:59.99
+// в кадре нельзя: зритель прочитает это как результат.
+export function isDnf(time) {
+  const seconds = parseTimeToSeconds(time)
+  return seconds !== null && seconds >= NOT_A_RESULT_FROM
+}
+
+// Результат попытки в секундах: время плюс штраф. null — попытки не было
+// или она не засчитана.
+export function attemptTotal(attempt) {
+  const time = parseTimeToSeconds(attempt?.time)
+  if (time === null || time >= NOT_A_RESULT_FROM) return null
+  return time + (attempt.penalty || 0)
+}
+
+// Лучшее время в секундах — для сравнений и отставаний.
+// Готовое значение сайта в приоритете: расходиться с официальным
+// протоколом в прямом эфире недопустимо.
+// Правка оператора отменяет доверие к готовому значению: раз попытки
+// исправляли руками, лучшее время сайта посчитано по старым данным
+// (`corrected` ставит applyOverrides в server/state.js).
+const trustSite = participant => Boolean(participant?.bestTime) && !participant?.corrected
+
+export function bestSeconds(participant) {
+  const fromSite = trustSite(participant) ? parseTimeToSeconds(participant.bestTime) : null
+  if (fromSite !== null) return fromSite >= NOT_A_RESULT_FROM ? null : fromSite
+
+  return bestAttempt(participant)?.total ?? null
+}
+
+// Лучшая засчитанная попытка вместе с её точностью: показать результат
+// с большим числом знаков, чем намерил хронометраж, нельзя.
+function bestAttempt(participant) {
   let best = null
-  for (const attempt of participant.attempts || []) {
-    const time = parseTimeToSeconds(attempt.time)
-    if (time === null) continue
-    const total = time + (attempt.penalty || 0)
-    if (best === null || total < best.total) best = { total, label: attempt.time }
+  for (const attempt of participant?.attempts || []) {
+    const total = attemptTotal(attempt)
+    if (total === null) continue
+    if (best === null || total < best.total) {
+      best = { total, digits: fractionDigits(attempt.time) }
+    }
   }
-  return best ? best.label : null
+  return best
+}
+
+// Лучшее время для показа: строка протокола, «сход» или null («ещё не ехал»).
+// Считаем сами только там, где у сайта значения нет, — и по тем же
+// правилам, что и он: с штрафом и без учёта сходов.
+export function bestOf(participant) {
+  if (trustSite(participant)) {
+    return isDnf(participant.bestTime) ? DNF_LABEL : participant.bestTime
+  }
+
+  const best = bestAttempt(participant)
+  if (best) return formatSeconds(best.total, best.digits)
+
+  // Ехал, но ни одной засчитанной попытки — это сход, а не пустая строка.
+  const rode = (participant?.attempts || []).some(a => parseTimeToSeconds(a.time) !== null)
+  return rode ? DNF_LABEL : null
+}
+
+// Время попытки для показа: сход словом, чтобы 59:59.99 не ушло в кадр.
+export function attemptLabel(attempt) {
+  if (!attempt?.time) return null
+  return isDnf(attempt.time) ? DNF_LABEL : attempt.time
+}
+
+// Отставание от лидера. Знак обязан быть верным: если данные разъехались
+// и участник оказался быстрее «лидера» по местам, «+-0.40» выглядело бы
+// как опечатка в эфире.
+export function formatDelta(seconds, digits = 2) {
+  if (seconds === null || seconds === undefined || Number.isNaN(seconds)) return '—'
+
+  const d = Math.min(Math.max(digits, 1), MAX_FRACTION_DIGITS)
+
+  // Нулём считаем то, что неразличимо в показанной точности. Иначе при
+  // хронометраже до десятитысячных два разных результата выглядели бы
+  // одинаково — «+0.00» вместо «+0.0012».
+  if (Math.abs(seconds) < 0.5 / 10 ** d) return '—'
+
+  return `${seconds > 0 ? '+' : '−'}${Math.abs(seconds).toFixed(d)}`
 }
 
 export function groupByClass(participants) {
@@ -43,14 +147,27 @@ export function groupByClass(participants) {
   return groups
 }
 
+// Порядок в классе — по официальным местам. Пока сайт их не проставил
+// (начало дня, первые заезды), выстраиваем по лучшему времени: иначе
+// топ-5 показывал бы случайный порядок из таблицы. Сошедшие и не
+// стартовавшие уходят в конец.
 export function topOfClass(participants, sportClass, limit = 5) {
   return participants
     .filter(p => (p.sportClass || 'Без класса') === sportClass)
-    .sort((a, b) => (a.placeInClass ?? Infinity) - (b.placeInClass ?? Infinity))
+    .map((rider, order) => ({ rider, order, seconds: bestSeconds(rider) }))
+    .sort((a, b) =>
+      (a.rider.placeInClass ?? Infinity) - (b.rider.placeInClass ?? Infinity)
+      || (a.seconds ?? Infinity) - (b.seconds ?? Infinity)
+      || a.order - b.order,
+    )
     .slice(0, limit)
+    .map(x => x.rider)
 }
 
+// Возраст данных считается по часам той машины, где открыт пульт, а метка
+// приходит с сервера. Часы могут разойтись, и «обновлено −4 с назад»
+// в строке состояния читалось бы как поломка. Ниже нуля не опускаемся.
 export function secondsSince(timestamp) {
   if (!timestamp) return null
-  return Math.floor((Date.now() - timestamp) / 1000)
+  return Math.max(0, Math.floor((Date.now() - timestamp) / 1000))
 }

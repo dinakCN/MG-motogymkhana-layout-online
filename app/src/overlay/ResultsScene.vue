@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, watch, nextTick } from 'vue'
-import { groupByClass, bestOf } from '../shared/format.js'
+import { groupByClass, bestOf, attemptLabel, isDnf, DNF_LABEL } from '../shared/format.js'
 import LogoBug from './LogoBug.vue'
 
 const props = defineProps({ state: { type: Object, required: true } })
@@ -54,11 +54,15 @@ const rows = computed(() => groups.value.map(group => ({
     rider,
     attempts: [1, 2].map((n) => {
       const attempt = rider.attempts?.find(a => a.n === n)
-      return attempt?.time
-        ? { time: attempt.time, penalty: attempt.penalty || null }
-        : { time: '—', penalty: null }
+      if (!attempt?.time) return { time: '—', penalty: null, dnf: false }
+
+      // У схода штраф не показываем: заезд не засчитан, и «сход +4»
+      // читалось бы как результат с добавкой.
+      const dnf = isDnf(attempt.time)
+      return { time: attemptLabel(attempt), penalty: dnf ? null : (attempt.penalty || null), dnf }
     }),
     best: bestOf(rider) ?? '—',
+    dnf: bestOf(rider) === DNF_LABEL,
   })),
 })))
 </script>
@@ -104,8 +108,9 @@ const rows = computed(() => groups.value.map(group => ({
                 v-for="(attempt, i) in row.attempts"
                 :key="i"
                 class="time tabular"
+                :class="{ dnf: attempt.dnf }"
               >{{ attempt.time }}<i v-if="attempt.penalty" class="pen">+{{ attempt.penalty }}</i></span>
-              <span class="best tabular">{{ row.best }}</span>
+              <span class="best tabular" :class="{ dnf: row.dnf }">{{ row.best }}</span>
             </div>
           </TransitionGroup>
         </section>
@@ -252,6 +257,15 @@ h2 {
 /* nowrap обязателен: без него штраф уезжает на вторую строку
    и строки начинают скакать по высоте. */
 .time { color: var(--ink-dim); text-align: right; white-space: nowrap; }
+
+/* Сход — не результат, поэтому и выглядит иначе: приглушённый курсив,
+   а не цифры в том же ряду с временами. */
+.time.dnf, .best.dnf {
+  font-size: 16px;
+  font-style: italic;
+  font-weight: 450;
+  color: var(--ink-faint);
+}
 
 .pen {
   font-size: 13px;

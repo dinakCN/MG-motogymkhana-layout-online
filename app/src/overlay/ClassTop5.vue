@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { topOfClass, bestOf, parseTimeToSeconds, formatDelta } from '../shared/format.js'
+import { topOfClass, bestOf, bestSeconds, formatDelta, fractionDigits, DNF_LABEL } from '../shared/format.js'
 
 const props = defineProps({
   participants: { type: Array, required: true },
@@ -10,12 +10,26 @@ const props = defineProps({
 
 const rows = computed(() => {
   const top = topOfClass(props.participants, props.sportClass, 5)
-  const leader = parseTimeToSeconds(bestOf(top[0] || {}))
+
+  // Лидером для отсчёта служит лучшее время в показанной пятёрке, а не
+  // первая строка: место с сайта может стоять у того, кто ещё не поехал,
+  // и тогда все отставания вышли бы отрицательными.
+  const times = top.map(bestSeconds).filter(s => s !== null)
+  const leader = times.length ? Math.min(...times) : null
 
   return top.map((rider) => {
-    const own = parseTimeToSeconds(bestOf(rider))
+    const own = bestSeconds(rider)
+    const label = bestOf(rider)
     const delta = own !== null && leader !== null ? own - leader : null
-    return { rider, best: bestOf(rider) ?? '—', delta: formatDelta(delta) }
+
+    // Отставание показываем с точностью самого результата: при хронометраже
+    // до десятитысячных двух знаков не хватит, чтобы различить соседей.
+    return {
+      rider,
+      best: label ?? '—',
+      dnf: label === DNF_LABEL,
+      delta: formatDelta(delta, fractionDigits(label)),
+    }
   })
 })
 </script>
@@ -24,14 +38,14 @@ const rows = computed(() => {
   <div v-if="rows.length" class="tower">
     <h3>Класс {{ sportClass }}</h3>
     <div
-      v-for="({ rider, best, delta }) in rows"
+      v-for="({ rider, best, delta, dnf }) in rows"
       :key="rider.id"
       class="line"
       :class="{ current: rider.id === highlightId }"
     >
       <span class="pl tabular">{{ rider.placeInClass ?? '—' }}</span>
       <span class="nm">{{ rider.fio }}</span>
-      <span class="bt tabular">{{ best }}</span>
+      <span class="bt tabular" :class="{ dnf }">{{ best }}</span>
       <span class="dl tabular">{{ delta }}</span>
     </div>
   </div>
@@ -89,5 +103,6 @@ h3 {
 .pl { color: var(--accent); font-weight: 700; }
 .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bt { text-align: right; font-weight: 600; }
+.bt.dnf { font-size: 17px; font-style: italic; font-weight: 450; color: var(--ink-faint); }
 .dl { text-align: right; color: var(--ink-faint); font-size: 18px; }
 </style>
