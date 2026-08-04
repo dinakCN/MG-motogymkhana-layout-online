@@ -72,6 +72,19 @@ html, body, #app {
 .row-enter-from { opacity: 0; transform: translateY(-12px) scale(0.98); }
 .row-leave-to { opacity: 0; }
 
+/* Превью в пульте (`/overlay?preview=1`) — контрольный монитор, а не эфир.
+   Там анимации выключены целиком, и вот почему: браузер тормозит кадры
+   у неактивного или перекрытого окна, а плавная смена сцены завязана на
+   эти кадры. В эфире это незаметно — OBS рисует источник всегда, — но в
+   превью оператор ждал бы отклика по несколько секунд и не понимал, ушла
+   команда или нет. Без переходов кадр меняется мгновенно, всегда. */
+.preview *,
+.preview *::before,
+.preview *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
