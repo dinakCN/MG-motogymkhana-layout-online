@@ -76,8 +76,20 @@ STAGE_ID=670 npm start
 | Результат конкретного участника не подтянулся | Развернуть «Аварийная правка результата» в пульте и вписать вручную. Это резервный путь, не рабочий |
 | Сервер упал | `npm start` — состояние и данные поднимутся из `state.json` |
 
+## Как это выглядит
+
+Снимки всех сцен — в [docs/screenshots](docs/screenshots/).
+
+| | |
+|---|---|
+| ![Таблица](docs/screenshots/1-results.png) | ![Заезд](docs/screenshots/2-run.png) |
+| Общая таблица результатов | Заезд: карточка и топ-5 класса |
+| ![Награждение](docs/screenshots/5-award-podium.png) | ![Заставка](docs/screenshots/7-idle.png) |
+| Награждение | Заставка |
+
 ## Документация
 
+- [Скриншоты](docs/screenshots/) — как выглядит каждая сцена
 - [Дизайн](docs/superpowers/specs/2026-08-04-overlay-motojimkhana-design.md) — архитектура, модель данных, сцены, пульт
 - [План реализации](docs/superpowers/plans/2026-08-04-overlay-motojimkhana.md) — задачи по шагам
 
