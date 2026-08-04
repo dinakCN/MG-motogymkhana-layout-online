@@ -44,6 +44,10 @@ export function loadConfig(env = process.env, event = eventConfig) {
     pollInterval: Number(env.POLL_INTERVAL) || Number(event.pollInterval) || 7000,
     highlightTimeout: Number(env.HIGHLIGHT_TIMEOUT) || Number(event.highlightTimeout) || 6000,
     showClassTop5: env.SHOW_CLASS_TOP5 ? env.SHOW_CLASS_TOP5 !== '0' : event.showClassTop5 !== false,
+    // Переопределения переменной окружения у групп нет: подменять состав
+    // награждения из командной строки незачем, а лишний способ ошибиться
+    // перед эфиром стоит дороже гибкости.
+    awardGroups: Array.isArray(event.awardGroups) ? event.awardGroups : [],
   }
 }
 

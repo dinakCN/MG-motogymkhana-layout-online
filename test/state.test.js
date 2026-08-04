@@ -359,3 +359,25 @@ describe('сохранение и загрузка', () => {
     rmSync(old, { force: true })
   })
 })
+
+describe('состояние награждения по группам', () => {
+  it('стартует без выбранной группы', () => {
+    const s = createDefaultState()
+    expect(s.award).toEqual({ subject: null, place: 1, showAllThree: false })
+    expect(s.awardGroups).toEqual([])
+    expect(s.riderGroups).toEqual({})
+  })
+
+  it('состояние прошлой версии с award.sportClass грузится без падения', () => {
+    const path = 'test/tmp-award-state.json'
+    writeFileSync(path, JSON.stringify({
+      activeScene: 'award',
+      award: { sportClass: 'N', place: 1, showAllThree: false },
+    }), 'utf-8')
+
+    const s = loadState(path)
+    expect(s.activeScene).toBe('award')
+    expect(s.award.subject).toBe(null)
+    rmSync(path, { force: true })
+  })
+})

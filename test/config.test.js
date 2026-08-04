@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { loadConfig, resolveStage } from '../server/config.js'
 import eventConfig from '../event.config.js'
+import { UNGROUPED } from '../app/src/shared/awardGroups.js'
 
 const TEMPLATE = 'https://gymkhana-cup.ru/competitions/stage?id={id}'
 
@@ -84,5 +85,27 @@ describe('переменные окружения перекрывают фай�
     const c = loadConfig({}, eventConfig)
     expect(c.stageId).toBe(String(eventConfig.stage))
     expect(c.stageId).toBe(c.liveStageId)
+  })
+})
+
+describe('группы награждения', () => {
+  it('доезжают из event.config.js до конфига сервера', () => {
+    const c = loadConfig({}, {
+      ...eventConfig,
+      awardGroups: [{ name: 'Любители', classes: ['D2', 'D3'] }],
+    })
+    expect(c.awardGroups).toEqual([{ name: 'Любители', classes: ['D2', 'D3'] }])
+  })
+
+  it('без блока групп — пустой список, сервер поднимается', () => {
+    expect(loadConfig({}, { ...eventConfig, awardGroups: undefined }).awardGroups).toEqual([])
+  })
+
+  it('в боевом конфиге группы заданы и не спорят с «Вне групп»', () => {
+    expect(eventConfig.awardGroups.length).toBeGreaterThan(0)
+    for (const group of eventConfig.awardGroups) {
+      expect(group.name).not.toBe(UNGROUPED)
+      expect(Array.isArray(group.classes)).toBe(true)
+    }
   })
 })
