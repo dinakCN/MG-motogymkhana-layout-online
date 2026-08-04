@@ -52,11 +52,16 @@ function update(patch) {
 
     <div class="row">
       <span class="label">Место</span>
+      <!-- Церемонию ведут с третьего места. В Круизере и SB призёров
+           может быть один-два: кнопка без пары в podium гасится, иначе
+           оператор жмёт «3» и в кадр уезжает «призёров пока нет», хотя
+           они уже стоят в зале. -->
       <button
         v-for="place in [3, 2, 1]"
         :key="place"
         class="btn"
         :class="{ primary: !award.showAllThree && award.place === place }"
+        :disabled="place > podium.length"
         @click="update({ place, showAllThree: false })"
       >{{ place }}</button>
     </div>

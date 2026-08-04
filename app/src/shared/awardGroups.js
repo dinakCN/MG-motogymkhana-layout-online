@@ -53,6 +53,9 @@ export function ridersOfGroup(participants = [], name, groups = [], riderGroups 
       const group = groupOf(rider, groups, riderGroups)
       return name === UNGROUPED ? !isKnown(group, groups) : group === name
     })
+    // Похоже на topOfClass из format.js, но объединять нельзя: тот сначала
+    // сортирует по placeInClass, а здесь это запрещено — сайт считает места
+    // внутри класса, и в группе «Любители» первых мест два, от D2 и от D3.
     // Порядок в протоколе запоминаем и используем при равном времени:
     // подиум не должен переставляться сам между опросами.
     .map((rider, order) => ({ rider, order, seconds: bestSeconds(rider) }))

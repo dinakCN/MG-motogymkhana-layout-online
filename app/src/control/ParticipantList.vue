@@ -33,8 +33,12 @@ const filtered = computed(() => {
   )
 })
 
-function groupName(rider) {
-  return groupOf(rider, props.awardGroups, props.riderGroups)
+// Первый пункт снимает ручную пометку, то есть возвращает группу по классу.
+// Подписывать его текущей группой нельзя: у помеченного участника оба пункта
+// назывались бы одинаково, и оператор, выбрав верхний, молча выбил бы
+// человека из SB перед его церемонией.
+function byClass(rider) {
+  return groupOf(rider, props.awardGroups, {})
 }
 </script>
 
@@ -51,15 +55,18 @@ function groupName(rider) {
 
       <!-- Нативный select: выпадающее меню и работа с клавиатуры достаются
            даром. Цветом отмечена ручная пометка — её видно до церемонии.
-           @click.stop, чтобы выбор группы не считался выделением строки. -->
+           @click.stop, чтобы выбор группы не считался выделением строки.
+           blur() после emit — иначе фокус остаётся в селекте: цифры 1-6
+           перестают переключать сцену, «/» не уходит в номер заезда, а
+           стрелки вверх-вниз в закрытом select тихо меняют группу участника. -->
       <select
         class="grp"
         :class="{ manual: riderGroups[rider.id] }"
         :value="riderGroups[rider.id] ?? ''"
         @click.stop
-        @change="emit('group', { participantId: rider.id, group: $event.target.value || null })"
+        @change="emit('group', { participantId: rider.id, group: $event.target.value || null }); $event.target.blur()"
       >
-        <option value="">{{ groupName(rider) ?? 'вне групп' }}</option>
+        <option value="">по классу · {{ byClass(rider) ?? 'вне групп' }}</option>
         <option v-for="g in awardGroups" :key="g.name" :value="g.name">{{ g.name }}</option>
       </select>
 
