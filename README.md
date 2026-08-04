@@ -89,6 +89,7 @@ STAGE_ID=670 npm start
 
 ## Документация
 
+- [Устройство проекта](ARCHITECTURE.md) — как работает, какие правила нельзя нарушать, как менять
 - [Скриншоты](docs/screenshots/) — как выглядит каждая сцена
 - [Дизайн](docs/superpowers/specs/2026-08-04-overlay-motojimkhana-design.md) — архитектура, модель данных, сцены, пульт
 - [План реализации](docs/superpowers/plans/2026-08-04-overlay-motojimkhana.md) — задачи по шагам
