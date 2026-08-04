@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { parseStage } from '../server/parser.js'
+import { parseStage, LAYOUT } from '../server/parser.js'
 
 const html670 = readFileSync(new URL('./fixtures/stage670.html', import.meta.url), 'utf-8')
 const html677 = readFileSync(new URL('./fixtures/stage677.html', import.meta.url), 'utf-8')
@@ -98,6 +98,35 @@ describe('parseStage — боевой этап без результатов (67
 
   it('у каждого участника ровно две попытки', () => {
     expect(list.every(p => p.attempts.length === 2)).toBe(true)
+  })
+})
+
+// Если сайт переставит колонки или переименует таблицу, чинить придётся
+// LAYOUT — эти тесты проверяют, что править действительно достаточно его.
+describe('parseStage — разметка сайта вынесена в LAYOUT', () => {
+  it('таблицу ищет по селектору из LAYOUT', () => {
+    const custom = { ...LAYOUT, table: 'table.нет-такой' }
+    expect(parseStage(html670, custom)).toEqual([])
+  })
+
+  it('переставленные колонки чинятся правкой индексов, без правки кода', () => {
+    // как если бы на сайте поменяли местами «класс» и «место в классе»
+    const swapped = {
+      ...LAYOUT,
+      columns: { ...LAYOUT.columns, CLASS: 1, PLACE_IN_CLASS: 0 },
+    }
+    const p = parseStage(html670, swapped)[0]
+
+    expect(p.sportClass).toBe('1')
+    expect(p.placeInClass).toBeNull()
+  })
+
+  it('цвета классов берутся из LAYOUT', () => {
+    const custom = { ...LAYOUT, colorByCss: { 'result-green': 'изумруд' } }
+    const list = parseStage(html677, custom)
+
+    expect(list.find(p => p.sportClass === 'C3').classColor).toBe('изумруд')
+    expect(list.find(p => p.sportClass === 'B').classColor).toBe('unknown')
   })
 })
 

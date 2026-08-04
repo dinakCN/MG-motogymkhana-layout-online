@@ -1,19 +1,35 @@
 import * as cheerio from 'cheerio'
 
-const COLOR_BY_CSS = {
-  'result-blue': 'blue',
-  'result-green': 'green',
-  'result-yellow': 'yellow',
-  'result-white': 'white',
-}
+// ────────────────────────────────────────────────────────────────────────
+// Разметка чужого сайта. Единственное место, которое приходится править,
+// если на gymkhana-cup.ru переставят колонки или переименуют таблицу.
+// Порядок починки — в ARCHITECTURE.md, раздел «Парсер сломался».
+// ────────────────────────────────────────────────────────────────────────
+export const LAYOUT = {
+  // На странице несколько таблиц, включая мобильную копию тех же данных.
+  // Берём только десктопную, иначе участники удвоятся.
+  table: 'div.show-pk table.results.results-with-img',
 
-// Ячейки, общие для всех попыток участника, вынесены через rowspan.
-// Порядок колонок: класс, место в классе, №, участник, мотоцикл,
-// попытка, время, штраф, лучшее время, место вне класса, рейтинг.
-// Заголовки таблицы на сайте — картинки, поэтому привязка только к индексу.
-const COL = {
-  CLASS: 0, PLACE_IN_CLASS: 1, NUMBER: 2, PARTICIPANT: 3, MOTORCYCLE: 4,
-  ATTEMPT: 5, TIME: 6, PENALTY: 7, BEST: 8, PLACE_OVERALL: 9, RATING: 10,
+  // Порядок колонок: класс, место в классе, №, участник, мотоцикл,
+  // попытка, время, штраф, лучшее время, место вне класса, рейтинг.
+  // Заголовки таблицы на сайте — картинки, поэтому привязка только к индексу.
+  columns: {
+    CLASS: 0, PLACE_IN_CLASS: 1, NUMBER: 2, PARTICIPANT: 3, MOTORCYCLE: 4,
+    ATTEMPT: 5, TIME: 6, PENALTY: 7, BEST: 8, PLACE_OVERALL: 9, RATING: 10,
+  },
+
+  // Ячейки, общие для всех попыток участника, вынесены через rowspan:
+  // строка-начало участника несёт их все, строка-продолжение — только
+  // попытку, время и штраф. Отличаем одну от другой по числу ячеек.
+  newParticipantCells: 9,
+
+  // Цвет класса живёт в CSS-классе строки, а не в тексте.
+  colorByCss: {
+    'result-blue': 'blue',
+    'result-green': 'green',
+    'result-yellow': 'yellow',
+    'result-white': 'white',
+  },
 }
 
 function textOrNull(value) {
@@ -39,10 +55,10 @@ function hashName(fio) {
   return `anon-${Math.abs(h).toString(36)}`
 }
 
-function colorFromRow($row) {
+function colorFromRow($row, colorByCss = {}) {
   const css = ($row.attr('class') || '').split(/\s+/)
   for (const name of css) {
-    if (COLOR_BY_CSS[name]) return COLOR_BY_CSS[name]
+    if (colorByCss[name]) return colorByCss[name]
   }
   return 'unknown'
 }
@@ -64,8 +80,10 @@ function parseParticipantCell($, cell) {
   }
 }
 
-export function parseStage(html) {
+export function parseStage(html, layout = LAYOUT) {
   if (!html) return []
+
+  const COL = layout.columns
 
   let $
   try {
@@ -74,9 +92,7 @@ export function parseStage(html) {
     return []
   }
 
-  // На странице несколько таблиц, включая мобильную копию тех же данных.
-  // Берём только десктопную, иначе участники удвоятся.
-  const table = $('div.show-pk table.results.results-with-img').first()
+  const table = $(layout.table).first()
   if (table.length === 0) return []
 
   const participants = []
@@ -85,9 +101,7 @@ export function parseStage(html) {
     const $row = $(row)
     const cells = $row.children('td').toArray()
 
-    // Строка-начало участника несёт все общие ячейки; строка-продолжение —
-    // только попытку, время и штраф.
-    const isNewParticipant = cells.length >= 9
+    const isNewParticipant = cells.length >= layout.newParticipantCells
 
     if (isNewParticipant) {
       const { athleteId, fio, city } = parseParticipantCell($, cells[COL.PARTICIPANT])
@@ -97,7 +111,7 @@ export function parseStage(html) {
         id: athleteId || hashName(fio),
         athleteId,
         sportClass: $(cells[COL.CLASS]).text().trim(),
-        classColor: colorFromRow($row),
+        classColor: colorFromRow($row, layout.colorByCss),
         number: intOrNull($(cells[COL.NUMBER]).text()),
         fio,
         city,
