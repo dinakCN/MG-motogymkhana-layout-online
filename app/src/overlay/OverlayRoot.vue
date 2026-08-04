@@ -6,6 +6,7 @@ import RunScene from './RunScene.vue'
 import HighlightScene from './HighlightScene.vue'
 import BreakScene from './BreakScene.vue'
 import AwardScene from './AwardScene.vue'
+import IdleScene from './IdleScene.vue'
 import '../style.css'
 
 const { state } = useSocket()
@@ -19,5 +20,6 @@ const scene = computed(() => state.value?.activeScene ?? null)
     <HighlightScene v-else-if="scene === 'highlight'" :state="state" />
     <BreakScene v-else-if="scene === 'break'" :state="state" />
     <AwardScene v-else-if="scene === 'award'" :state="state" />
+    <IdleScene v-else-if="scene === 'idle'" :state="state" />
   </Transition>
 </template>

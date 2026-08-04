@@ -57,6 +57,12 @@ describe('applyCommand', () => {
     expect(s.activeScene).toBe('run')
   })
 
+  it('принимает заставку как полноценную сцену', () => {
+    const s = createDefaultState()
+    expect(applyCommand(s, { type: 'setActiveScene', payload: 'idle' })).toBe(true)
+    expect(s.activeScene).toBe('idle')
+  })
+
   it('отвергает несуществующую сцену', () => {
     const s = createDefaultState()
     expect(applyCommand(s, { type: 'setActiveScene', payload: 'нет-такой' })).toBe(false)

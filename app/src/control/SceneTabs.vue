@@ -8,6 +8,7 @@ const SCENES = [
   { key: 'highlight', label: 'Хайлайт', hot: '3' },
   { key: 'break', label: 'Пауза', hot: '4' },
   { key: 'award', label: 'Награждение', hot: '5' },
+  { key: 'idle', label: 'Заставка', hot: '6' },
 ]
 </script>
 

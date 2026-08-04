@@ -19,7 +19,7 @@ const runBlock = ref(null)
 
 const participants = computed(() => state.value?.participants ?? [])
 
-const HOTKEYS = { 1: 'results', 2: 'run', 3: 'highlight', 4: 'break', 5: 'award' }
+const HOTKEYS = { 1: 'results', 2: 'run', 3: 'highlight', 4: 'break', 5: 'award', 6: 'idle' }
 
 // Пока курсор в поле ввода, цифры набирают номер; вне поля — переключают
 // сцены. Вход в поле — «/», выход — Esc.

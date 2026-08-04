@@ -1,10 +1,12 @@
 <script setup>
 import { computed } from 'vue'
+import BaseLayer from './BaseLayer.vue'
 
 const props = defineProps({ state: { type: Object, required: true } })
 
 // Перерыв — плановый элемент вещания, поэтому в кадре всегда написано,
-// что будет дальше, а не просто «пауза».
+// что будет дальше, а не просто «пауза». Если нужен экран без обещаний —
+// это заставка, отдельная сцена.
 const TEXTS = {
   round1: { title: 'Идут заезды', sub: 'Первая серия · 12:15–14:00' },
   break1: { title: 'Перерыв', sub: 'Вторая серия заездов в 14:30' },
@@ -18,37 +20,21 @@ const text = computed(() => TEXTS[props.state.round] || TEXTS.break1)
 </script>
 
 <template>
-  <div class="break">
-    <img class="logo" :src="state.logoUrl" alt="" />
+  <BaseLayer :logo-url="state.logoUrl" logo="medium">
     <h1>{{ text.title }}</h1>
-    <p v-if="text.sub">{{ text.sub }}</p>
+    <p v-if="text.sub" class="sub">{{ text.sub }}</p>
     <p class="event">{{ state.eventTitle }}</p>
-  </div>
+  </BaseLayer>
 </template>
 
 <style scoped>
-.break {
-  width: 100%;
-  height: 100%;
-  background:
-    radial-gradient(90% 60% at 50% 30%, rgba(255, 159, 10, 0.14) 0%, transparent 65%),
-    linear-gradient(170deg, #10141a 0%, #0a0d12 100%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-}
-
-.logo { height: 132px; margin-bottom: 28px; }
-
 h1 {
   font-size: 72px;
   font-weight: 700;
   letter-spacing: -0.03em;
 }
 
-p { font-size: 30px; color: var(--ink-dim); }
+.sub { font-size: 30px; color: var(--ink-dim); }
 
 .event {
   font-size: 20px;

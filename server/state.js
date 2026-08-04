@@ -1,6 +1,9 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 
-const SCENES = ['results', 'run', 'highlight', 'break', 'award']
+// idle — тихая заставка: логотип и ничего больше. В отличие от break
+// она ничего не заявляет и не привязана к раунду, поэтому её можно
+// держать в кадре сколько угодно долго.
+const SCENES = ['results', 'run', 'highlight', 'break', 'award', 'idle']
 const ROUNDS = ['round1', 'break1', 'round2', 'final', 'break2', 'awards']
 
 export function createDefaultState() {

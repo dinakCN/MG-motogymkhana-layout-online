@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { topOfClass, bestOf } from '../shared/format.js'
+import BaseLayer from './BaseLayer.vue'
 
 const props = defineProps({ state: { type: Object, required: true } })
 
@@ -23,8 +24,7 @@ const podium = computed(() => {
 </script>
 
 <template>
-  <div class="award">
-    <img class="logo" :src="state.logoUrl" alt="" />
+  <BaseLayer :logo-url="state.logoUrl" logo="small">
     <h1>Класс {{ state.award.sportClass || '—' }}</h1>
 
     <div class="podium">
@@ -43,25 +43,16 @@ const podium = computed(() => {
     </div>
 
     <p v-if="!podium.length" class="empty">Призёры появятся, когда будут результаты</p>
-  </div>
+  </BaseLayer>
 </template>
 
 <style scoped>
-.award {
-  width: 100%;
-  height: 100%;
-  background:
-    radial-gradient(100% 70% at 50% 100%, rgba(255, 159, 10, 0.16) 0%, transparent 65%),
-    linear-gradient(170deg, #10141a 0%, #0a0d12 100%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 36px;
+h1 {
+  font-size: 46px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 20px 0 16px;
 }
-
-.logo { height: 88px; }
-h1 { font-size: 46px; font-weight: 700; letter-spacing: -0.02em; }
 
 .podium { display: flex; gap: 36px; align-items: flex-end; }
 
