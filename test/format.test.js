@@ -81,6 +81,35 @@ describe('сход', () => {
     expect(bestOf(p)).toBe('01:42.80')
   })
 
+  // Заваленная попытка на сайте зачёркнута, и время у неё бывает обычным:
+  // Крюкова проехала 03:47.90, в зачёт не пошло. Ловить только 59:59.99
+  // недостаточно — величина времени тут ничего не решает.
+  it('заваленная попытка не идёт в зачёт даже с обычным временем', () => {
+    const p = rider({ attempts: [
+      { n: 1, time: '03:47.90', penalty: 0, scratched: true },
+      { n: 2, time: '02:43.86', penalty: 0 },
+    ] })
+    expect(bestOf(p)).toBe('02:43.86')
+  })
+
+  it('заваленная попытка не идёт в зачёт, даже если она быстрее засчитанной', () => {
+    const p = rider({ attempts: [
+      { n: 1, time: '01:19.00', penalty: 0, scratched: true },
+      { n: 2, time: '01:43.00', penalty: 0 },
+    ] })
+    expect(bestOf(p)).toBe('01:43.00')
+    expect(bestSeconds(p)).toBeCloseTo(103, 2)
+  })
+
+  it('заваленные все попытки — результата нет', () => {
+    const p = rider({ attempts: [
+      { n: 1, time: '01:19.00', penalty: 0, scratched: true },
+      { n: 2, time: '01:43.00', penalty: 0, scratched: true },
+    ] })
+    expect(bestSeconds(p)).toBeNull()
+    expect(bestOf(p)).toBe(DNF_LABEL)
+  })
+
   it('сход в готовом значении сайта тоже становится словом', () => {
     expect(bestOf(rider({ bestTime: '59:59.99' }))).toBe(DNF_LABEL)
     expect(bestSeconds(rider({ bestTime: '59:59.99' }))).toBeNull()

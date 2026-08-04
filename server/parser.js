@@ -23,6 +23,12 @@ export const LAYOUT = {
   // попытку, время и штраф. Отличаем одну от другой по числу ячеек.
   newParticipantCells: 9,
 
+  // Заваленная попытка на сайте зачёркнута. Время при этом может быть
+  // обычным: Крюкова, 03:47.90 зачёркнуто — проехала, но в зачёт не пошло.
+  // Ловить только 59:59.99 недостаточно: зачеркнули бы результат быстрее
+  // второй попытки, и мы бы взяли его в лучшее время вопреки протоколу.
+  scratchedTime: 'strike, s, del',
+
   // Цвет класса живёт в CSS-классе строки, а не в тексте.
   colorByCss: {
     'result-blue': 'blue',
@@ -61,6 +67,23 @@ function colorFromRow($row, colorByCss = {}) {
     if (colorByCss[name]) return colorByCss[name]
   }
   return 'unknown'
+}
+
+// Строка-начало участника и строка-продолжение отличаются только тем,
+// в каких ячейках лежит попытка, — сам разбор общий.
+// Поле `scratched` появляется только у заваленных попыток: так строки
+// с обычными данными остаются такими же, какими были.
+function readAttempt($, attemptCell, timeCell, penaltyCell, layout, fallbackNumber) {
+  const attempt = {
+    n: intOrNull($(attemptCell).text()) || fallbackNumber,
+    time: textOrNull($(timeCell).text()),
+    penalty: intOrNull($(penaltyCell).text()),
+  }
+
+  if (layout.scratchedTime && $(timeCell).find(layout.scratchedTime).length > 0) {
+    attempt.scratched = true
+  }
+  return attempt
 }
 
 function parseParticipantCell($, cell) {
@@ -116,11 +139,9 @@ export function parseStage(html, layout = LAYOUT) {
         fio,
         city,
         motorcycle: $(cells[COL.MOTORCYCLE]).text().trim(),
-        attempts: [{
-          n: intOrNull($(cells[COL.ATTEMPT]).text()) || 1,
-          time: textOrNull($(cells[COL.TIME]).text()),
-          penalty: intOrNull($(cells[COL.PENALTY]).text()),
-        }],
+        attempts: [
+          readAttempt($, cells[COL.ATTEMPT], cells[COL.TIME], cells[COL.PENALTY], layout, 1),
+        ],
         bestTime: textOrNull($(cells[COL.BEST]).text()),
         placeInClass: intOrNull($(cells[COL.PLACE_IN_CLASS]).text()),
         placeOverall: intOrNull($(cells[COL.PLACE_OVERALL]).text()),
@@ -134,11 +155,9 @@ export function parseStage(html, layout = LAYOUT) {
     const current = participants[participants.length - 1]
     if (!current || cells.length < 3) return
 
-    current.attempts.push({
-      n: intOrNull($(cells[0]).text()) || current.attempts.length + 1,
-      time: textOrNull($(cells[1]).text()),
-      penalty: intOrNull($(cells[2]).text()),
-    })
+    current.attempts.push(
+      readAttempt($, cells[0], cells[1], cells[2], layout, current.attempts.length + 1),
+    )
   })
 
   return participants

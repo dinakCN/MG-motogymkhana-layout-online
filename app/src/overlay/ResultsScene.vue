@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, watch, nextTick } from 'vue'
-import { groupByClass, bestOf, attemptLabel, isDnf, DNF_LABEL } from '../shared/format.js'
+import { groupByClass, bestOf, attemptLabel, isDnf, isScratched, DNF_LABEL } from '../shared/format.js'
 import LogoBug from './LogoBug.vue'
 
 const props = defineProps({ state: { type: Object, required: true } })
@@ -54,12 +54,20 @@ const rows = computed(() => groups.value.map(group => ({
     rider,
     attempts: [1, 2].map((n) => {
       const attempt = rider.attempts?.find(a => a.n === n)
-      if (!attempt?.time) return { time: '—', penalty: null, dnf: false }
+      if (!attempt?.time) return { time: '—', penalty: null, dnf: false, scratched: false }
 
-      // У схода штраф не показываем: заезд не засчитан, и «сход +4»
-      // читалось бы как результат с добавкой.
+      // У незачтённой попытки штраф не показываем: «сход +4» читалось бы
+      // как результат с добавкой, а у заваленного заезда штраф уже ничего
+      // не меняет.
       const dnf = isDnf(attempt.time)
-      return { time: attemptLabel(attempt), penalty: dnf ? null : (attempt.penalty || null), dnf }
+      const scratched = isScratched(attempt)
+
+      return {
+        time: attemptLabel(attempt),
+        penalty: scratched ? null : (attempt.penalty || null),
+        dnf,
+        scratched: scratched && !dnf,
+      }
     }),
     best: bestOf(rider) ?? '—',
     dnf: bestOf(rider) === DNF_LABEL,
@@ -108,7 +116,7 @@ const rows = computed(() => groups.value.map(group => ({
                 v-for="(attempt, i) in row.attempts"
                 :key="i"
                 class="time tabular"
-                :class="{ dnf: attempt.dnf }"
+                :class="{ dnf: attempt.dnf, scratched: attempt.scratched }"
               >{{ attempt.time }}<i v-if="attempt.penalty" class="pen">+{{ attempt.penalty }}</i></span>
               <span class="best tabular" :class="{ dnf: row.dnf }">{{ row.best }}</span>
             </div>
@@ -257,6 +265,15 @@ h2 {
 /* nowrap обязателен: без него штраф уезжает на вторую строку
    и строки начинают скакать по высоте. */
 .time { color: var(--ink-dim); text-align: right; white-space: nowrap; }
+
+/* Заваленная попытка зачёркнута — тем же языком, что и в протоколе:
+   заезд был, время намерено, но в зачёт не идёт. */
+.time.scratched {
+  text-decoration: line-through;
+  text-decoration-color: var(--danger);
+  text-decoration-thickness: 2px;
+  color: var(--ink-faint);
+}
 
 /* Сход — не результат, поэтому и выглядит иначе: приглушённый курсив,
    а не цифры в том же ряду с временами. */

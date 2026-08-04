@@ -57,11 +57,22 @@ export function isDnf(time) {
   return seconds !== null && seconds >= NOT_A_RESULT_FROM
 }
 
+// Заваленная попытка. На сайте она зачёркнута, и время у неё бывает
+// обычным: Крюкова проехала 03:47.90, но в зачёт это не пошло. Величина
+// времени тут ничего не решает — решает пометка протокола, поэтому
+// зачёркивание проверяем первым, а порог держим страховкой на случай,
+// если разметку на сайте поменяют.
+export function isScratched(attempt) {
+  return Boolean(attempt?.scratched) || isDnf(attempt?.time)
+}
+
 // Результат попытки в секундах: время плюс штраф. null — попытки не было
 // или она не засчитана.
 export function attemptTotal(attempt) {
+  if (isScratched(attempt)) return null
+
   const time = parseTimeToSeconds(attempt?.time)
-  if (time === null || time >= NOT_A_RESULT_FROM) return null
+  if (time === null) return null
   return time + (attempt.penalty || 0)
 }
 
@@ -106,11 +117,15 @@ export function bestOf(participant) {
   if (best) return formatSeconds(best.total, best.digits)
 
   // Ехал, но ни одной засчитанной попытки — это сход, а не пустая строка.
+  // Заваленные заезды сюда тоже попадают: результата у человека нет.
   const rode = (participant?.attempts || []).some(a => parseTimeToSeconds(a.time) !== null)
   return rode ? DNF_LABEL : null
 }
 
-// Время попытки для показа: сход словом, чтобы 59:59.99 не ушло в кадр.
+// Время попытки для показа: сход словом, чтобы 59:59.99 не ушло в кадр
+// числом. Заваленную попытку с обычным временем показываем как есть —
+// зачёркнутой, как в протоколе: зритель видит, что заезд был, и что он
+// не в зачёт.
 export function attemptLabel(attempt) {
   if (!attempt?.time) return null
   return isDnf(attempt.time) ? DNF_LABEL : attempt.time

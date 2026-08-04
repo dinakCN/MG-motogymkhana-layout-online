@@ -130,6 +130,33 @@ describe('parseStage — разметка сайта вынесена в LAYOUT'
   })
 })
 
+// Заваленную попытку сайт зачёркивает. Без этого признака мы отличали бы
+// её только по 59:59.99 — и засчитали бы зачёркнутый заезд с обычным
+// временем, которого нет в официальном протоколе.
+describe('parseStage — заваленные попытки', () => {
+  const list = parseStage(html670)
+
+  it('зачёркнутое время помечается, обычное — нет', () => {
+    const крюкова = list.find(p => p.fio.startsWith('Крюкова'))
+
+    expect(крюкова.attempts[0]).toMatchObject({ time: '03:47.90', scratched: true })
+    expect(крюкова.attempts[1].scratched).toBeUndefined()
+  })
+
+  it('находит все заваленные попытки этапа', () => {
+    const заваленные = list.flatMap(p => p.attempts.filter(a => a.scratched).map(a => `${p.fio}: ${a.time}`))
+
+    expect(заваленные.sort()).toEqual(['Буланов Сергей: 59:59.99', 'Крюкова Инна: 03:47.90'])
+  })
+
+  it('на большом этапе тоже — там завалов больше', () => {
+    const заваленные = parseStage(readFileSync(new URL('./fixtures/stage679.html', import.meta.url), 'utf-8'))
+      .flatMap(p => p.attempts.filter(a => a.scratched))
+
+    expect(заваленные.length).toBeGreaterThan(5)
+  })
+})
+
 describe('parseStage — устойчивость', () => {
   it('на мусоре возвращает пустой массив, а не бросает', () => {
     expect(parseStage('<html><body>ничего</body></html>')).toEqual([])
