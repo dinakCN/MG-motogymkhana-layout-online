@@ -3,19 +3,30 @@ import { readFileSync, writeFileSync } from 'node:fs'
 // idle — тихая заставка: логотип и ничего больше. В отличие от break
 // она ничего не заявляет и не привязана к раунду, поэтому её можно
 // держать в кадре сколько угодно долго.
-const SCENES = ['results', 'run', 'highlight', 'break', 'award', 'idle']
-const ROUNDS = ['round1', 'break1', 'round2', 'final', 'break2', 'awards']
+export const SCENES = ['results', 'run', 'highlight', 'break', 'award', 'idle']
+
+// Ключи моментов дня продублированы в app/src/shared/rounds.js (там же тексты
+// для кадра). Сервер не импортирует клиентский код, поэтому совпадение
+// списков стережёт тест: разъехавшись, они молча отвергали бы команды пульта.
+export const ROUNDS = ['round1', 'break1', 'round2', 'final', 'break2', 'awards']
 
 export function createDefaultState() {
   return {
     eventTitle: 'Чемпионат Новосибирской области по мотоджимхане 2026',
     logoUrl: '/assets/logo.png',
     stageId: null,
+    // Перекрываются настройками сервера при старте (server/index.js).
+    // Здесь — чтобы состояние было полным даже без него, например в тестах.
+    liveStageId: null,
+    highlightTimeout: 6000,
+    showClassTop5: true,
     activeScene: 'results',
     round: 'round1',
     lastSuccessfulPoll: 0,
     currentRun: { participantId: null, attemptLabel: 'Попытка 1', caption: '' },
-    highlight: { participantId: null, caption: '', visible: false },
+    // returnScene живёт в состоянии, а не в пульте: перезагруженная вкладка
+    // пульта не должна забыть, куда возвращать кадр после хайлайта.
+    highlight: { participantId: null, caption: '', visible: false, returnScene: 'results' },
     award: { sportClass: null, place: 1, showAllThree: false },
     // Ручные правки живут отдельно от данных опроса и накладываются
     // поверх них после каждого успешного обновления. Иначе правка
@@ -28,11 +39,27 @@ export function createDefaultState() {
 
 const overrideKey = (participantId, attempt, field) => `${participantId}:${attempt}:${field}`
 
+// Находит попытку участника, при необходимости заводя пустую. Аварийная
+// правка нужна ровно тогда, когда данных нет: строки второй попытки на
+// сайте может ещё не быть, а результат уже объявили в эфире.
+function attemptSlot(participant, n) {
+  if (!participant) return null
+  participant.attempts ??= []
+
+  let attempt = participant.attempts.find(a => a.n === n)
+  if (!attempt) {
+    attempt = { n, time: null, penalty: null }
+    participant.attempts.push(attempt)
+    participant.attempts.sort((a, b) => a.n - b.n)
+  }
+  return attempt
+}
+
 export function applyOverrides(state) {
   for (const [key, value] of Object.entries(state.overrides ?? {})) {
     const [participantId, attemptNumber, field] = key.split(':')
     const participant = state.participants.find(p => p.id === participantId)
-    const attempt = participant?.attempts?.find(a => a.n === Number(attemptNumber))
+    const attempt = attemptSlot(participant, Number(attemptNumber))
     if (attempt) attempt[field] = value
   }
 }
@@ -77,6 +104,11 @@ export function applyCommand(state, message) {
         participantId: payload?.participantId ?? null,
         caption: payload?.caption ?? '',
         visible: true,
+        // Сцену запоминаем только на входе в хайлайт: повторный показ
+        // поверх уже висящего не должен записать 'highlight' как точку возврата.
+        returnScene: state.activeScene === 'highlight'
+          ? (state.highlight.returnScene ?? 'results')
+          : state.activeScene,
       }
       return true
 
@@ -94,19 +126,22 @@ export function applyCommand(state, message) {
 
     case 'manualOverride': {
       const p = state.participants.find(x => x.id === payload?.participantId)
-      const attempt = p?.attempts?.find(a => a.n === payload?.attempt)
-      if (!attempt || !['time', 'penalty'].includes(payload?.field)) return false
+      if (!p || !Number.isInteger(payload?.attempt)) return false
+      if (!['time', 'penalty'].includes(payload?.field)) return false
 
       const key = overrideKey(payload.participantId, payload.attempt, payload.field)
 
       // Пустое значение снимает правку и возвращает строку под управление
-      // опросчика — иначе ошибочную правку было бы не отменить.
+      // опросчика — иначе ошибочную правку было бы не отменить. Попытку при
+      // этом не заводим: снятие правки не должно оставлять после себя строку,
+      // которой на сайте нет.
       if (payload.value === '' || payload.value === null) {
         delete state.overrides[key]
-      } else {
-        state.overrides[key] = payload.value
-        attempt[payload.field] = payload.value
+        return true
       }
+
+      state.overrides[key] = payload.value
+      attemptSlot(p, payload.attempt)[payload.field] = payload.value
       return true
     }
 
@@ -123,10 +158,26 @@ export function saveState(state, path) {
   }
 }
 
+// Вложенные объекты сливаются по полям, а не заменяются целиком: state.json
+// мог быть записан прошлой версией, где какого-то поля ещё не было, —
+// и в эфир ушло бы состояние с дырой вместо значения по умолчанию.
 export function loadState(path) {
+  let saved
   try {
-    return { ...createDefaultState(), ...JSON.parse(readFileSync(path, 'utf-8')) }
+    saved = JSON.parse(readFileSync(path, 'utf-8'))
   } catch {
     return createDefaultState()
   }
+
+  const state = createDefaultState()
+  for (const [key, value] of Object.entries(saved ?? {})) {
+    if (value === null || value === undefined) continue
+
+    const base = state[key]
+    const bothPlainObjects = base && typeof base === 'object' && !Array.isArray(base)
+      && value && typeof value === 'object' && !Array.isArray(value)
+
+    state[key] = bothPlainObjects ? { ...base, ...value } : value
+  }
+  return state
 }

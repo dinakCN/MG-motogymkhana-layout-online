@@ -4,10 +4,9 @@ import RiderCard from './RiderCard.vue'
 import ClassTop5 from './ClassTop5.vue'
 import LogoBug from './LogoBug.vue'
 
-const props = defineProps({
-  state: { type: Object, required: true },
-  showTop5: { type: Boolean, default: true },
-})
+// Показывать ли башню топ-5 класса, решает настройка сервера
+// (config.showClassTop5): она приезжает вместе с состоянием.
+const props = defineProps({ state: { type: Object, required: true } })
 
 const rider = computed(
   () => props.state.participants.find(p => p.id === props.state.currentRun.participantId) || null,
@@ -22,7 +21,7 @@ const rider = computed(
       :caption="state.currentRun.caption"
     />
     <ClassTop5
-      v-if="showTop5 && rider.sportClass"
+      v-if="(state.showClassTop5 ?? true) && rider.sportClass"
       :participants="state.participants"
       :sport-class="rider.sportClass"
       :highlight-id="rider.id"

@@ -84,6 +84,33 @@ describe('applyCommand', () => {
     expect(s.highlight.visible).toBe(false)
   })
 
+  it('запоминает сцену возврата — иначе после хайлайта кадр опустеет', () => {
+    const s = createDefaultState()
+    applyCommand(s, { type: 'setActiveScene', payload: 'run' })
+    applyCommand(s, { type: 'showHighlight', payload: { participantId: '42' } })
+    applyCommand(s, { type: 'setActiveScene', payload: 'highlight' })
+
+    expect(s.highlight.returnScene).toBe('run')
+  })
+
+  it('повторный показ поверх хайлайта не делает точкой возврата сам хайлайт', () => {
+    const s = createDefaultState()
+    applyCommand(s, { type: 'setActiveScene', payload: 'run' })
+    applyCommand(s, { type: 'showHighlight', payload: { participantId: '42' } })
+    applyCommand(s, { type: 'setActiveScene', payload: 'highlight' })
+    applyCommand(s, { type: 'showHighlight', payload: { participantId: '43' } })
+
+    expect(s.highlight.returnScene).toBe('run')
+  })
+
+  it('переключает момент дня и отвергает неизвестный', () => {
+    const s = createDefaultState()
+    expect(applyCommand(s, { type: 'setRound', payload: 'break1' })).toBe(true)
+    expect(s.round).toBe('break1')
+    expect(applyCommand(s, { type: 'setRound', payload: 'обед' })).toBe(false)
+    expect(s.round).toBe('break1')
+  })
+
   it('правит одну ячейку результата аварийно', () => {
     const s = createDefaultState()
     applyParticipants(s, [rider('1', 'Болдов Иван')])
@@ -135,6 +162,47 @@ describe('applyCommand', () => {
     expect(s.participants[0].attempts[0].time).toBe('00:99.99')
   })
 
+  it('заводит попытку, которой ещё нет на сайте — ради этого правка и нужна', () => {
+    const s = createDefaultState()
+    applyParticipants(s, [rider('1', 'Болдов Иван')])
+    s.participants[0].attempts = [{ n: 1, time: '00:42.31', penalty: null }]
+
+    expect(applyCommand(s, { type: 'manualOverride', payload: { participantId: '1', attempt: 2, field: 'time', value: '00:41.10' } })).toBe(true)
+    expect(s.participants[0].attempts).toHaveLength(2)
+    expect(s.participants[0].attempts[1]).toMatchObject({ n: 2, time: '00:41.10' })
+  })
+
+  it('правка второй попытки держится и после опроса, где её ещё нет', () => {
+    const s = createDefaultState()
+    const fromSite = () => {
+      const r = rider('1', 'Болдов Иван')
+      r.attempts = [{ n: 1, time: '00:42.31', penalty: null }]
+      return r
+    }
+
+    applyParticipants(s, [fromSite()])
+    applyCommand(s, { type: 'manualOverride', payload: { participantId: '1', attempt: 2, field: 'time', value: '00:41.10' } })
+    applyParticipants(s, [fromSite()])
+
+    expect(s.participants[0].attempts.find(a => a.n === 2)?.time).toBe('00:41.10')
+  })
+
+  it('снятие правки не заводит попытку, которой нет на сайте', () => {
+    const s = createDefaultState()
+    applyParticipants(s, [rider('1', 'Болдов Иван')])
+    s.participants[0].attempts = [{ n: 1, time: '00:42.31', penalty: null }]
+
+    applyCommand(s, { type: 'manualOverride', payload: { participantId: '1', attempt: 2, field: 'time', value: '' } })
+    expect(s.participants[0].attempts).toHaveLength(1)
+  })
+
+  it('отвергает правку для неизвестного участника', () => {
+    const s = createDefaultState()
+    applyParticipants(s, [rider('1', 'Болдов Иван')])
+
+    expect(applyCommand(s, { type: 'manualOverride', payload: { participantId: 'нет', attempt: 1, field: 'time', value: '00:42.31' } })).toBe(false)
+  })
+
   it('игнорирует неизвестную команду', () => {
     const s = createDefaultState()
     expect(applyCommand(s, { type: 'что-то', payload: 1 })).toBe(false)
@@ -165,5 +233,19 @@ describe('сохранение и загрузка', () => {
     writeFileSync(bad, '{сломано')
     expect(loadState(bad).activeScene).toBe('results')
     rmSync(bad, { force: true })
+  })
+
+  it('добирает поля, которых не было в файле прошлой версии', () => {
+    const old = 'test/tmp-old.json'
+    writeFileSync(old, JSON.stringify({ activeScene: 'run', highlight: { visible: true } }))
+
+    const restored = loadState(old)
+    expect(restored.activeScene).toBe('run')
+    expect(restored.highlight.visible).toBe(true)
+    // поля не было в файле — берём значение по умолчанию, а не undefined
+    expect(restored.highlight.returnScene).toBe('results')
+    expect(restored.participants).toEqual([])
+
+    rmSync(old, { force: true })
   })
 })

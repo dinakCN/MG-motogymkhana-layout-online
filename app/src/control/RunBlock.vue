@@ -21,11 +21,21 @@ const preview = ref(null)
 
 watch(() => props.preselected, (rider) => { if (rider) preview.value = rider })
 
-watch(numberInput, (value) => {
-  const n = Number.parseInt(value, 10)
-  if (Number.isNaN(n)) return
-  const found = props.participants.find(p => p.number === n)
-  if (found) preview.value = found
+// Номер, которого нет в составе, обязан гасить предпросмотр. Иначе там
+// оставался бы прежний райдер, и Enter вывел бы в эфир не того, кого
+// оператор только что набрал, — молча и без единого признака ошибки.
+const notFound = computed(() => {
+  const value = numberInput.value.trim()
+  if (!value) return false
+  return !props.participants.some(p => p.number === Number.parseInt(value, 10))
+})
+
+watch([numberInput, () => props.participants], () => {
+  const value = numberInput.value.trim()
+  if (!value) return
+
+  const found = props.participants.find(p => p.number === Number.parseInt(value, 10))
+  preview.value = found ?? null
 })
 
 const onAir = computed(
@@ -68,6 +78,7 @@ defineExpose({ focusNumber: () => numberField.value?.focus() })
       <div class="line2">{{ preview.city }}</div>
       <div class="line2">{{ preview.motorcycle }}</div>
     </div>
+    <p v-else-if="notFound" class="miss">Номера {{ numberInput }} нет в составе — найдите по ФИО в списке</p>
     <p v-else class="hint">Наберите номер или выберите участника в списке</p>
 
     <div class="row">
@@ -117,6 +128,18 @@ defineExpose({ focusNumber: () => numberField.value?.focus() })
 .line1 { font-size: 16px; font-weight: 640; }
 .line2 { font-size: 13px; color: var(--ink-faint); margin-top: 2px; }
 .hint { font-size: 13px; color: var(--ink-faint); margin-bottom: 12px; }
+
+/* Промах по номеру должен быть виден боковым зрением: в эфире оператор
+   смотрит на площадку, а не в пульт. */
+.miss {
+  font-size: 13px;
+  color: var(--warn);
+  margin-bottom: 12px;
+  padding: 9px 12px;
+  border-radius: var(--r-md);
+  background: rgba(255, 214, 10, 0.12);
+  border: 1px solid rgba(255, 214, 10, 0.3);
+}
 
 .wide { width: 100%; margin-top: 10px; }
 </style>

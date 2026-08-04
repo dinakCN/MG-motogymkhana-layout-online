@@ -5,23 +5,33 @@ export function useSocket() {
   const connected = ref(false)
   let socket = null
   let retryTimer = null
+  let disposed = false
 
   function connect() {
+    if (disposed) return
+
     const url = `ws://${window.location.host}`
     socket = new WebSocket(url)
 
     socket.addEventListener('open', () => { connected.value = true })
 
+    // Битое сообщение не должно валить обработчик: следом за ним идут
+    // нормальные обновления состояния, и приём обязан их пережить.
     socket.addEventListener('message', (event) => {
-      const message = JSON.parse(event.data)
-      if (message.type === 'state') state.value = message.payload
+      let message
+      try {
+        message = JSON.parse(event.data)
+      } catch {
+        return
+      }
+      if (message?.type === 'state' && message.payload) state.value = message.payload
     })
 
     // Переподключение обязательно: OBS может пересоздать источник,
     // а эфир идёт часами — ручной перезапуск страницы недопустим.
     socket.addEventListener('close', () => {
       connected.value = false
-      retryTimer = setTimeout(connect, 2000)
+      if (!disposed) retryTimer = setTimeout(connect, 2000)
     })
 
     socket.addEventListener('error', () => socket.close())
@@ -35,6 +45,9 @@ export function useSocket() {
 
   onMounted(connect)
   onUnmounted(() => {
+    // Без флага close() ниже сам же назначил бы новое переподключение,
+    // и закрытая страница продолжала бы стучаться в сервер.
+    disposed = true
     clearTimeout(retryTimer)
     socket?.close()
   })

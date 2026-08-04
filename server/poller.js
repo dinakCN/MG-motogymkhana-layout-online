@@ -29,11 +29,19 @@ export async function pollOnce(state, { url, fetchImpl = fetch }) {
 export function startPolling(state, { url, interval, onUpdate, fetchImpl = fetch }) {
   let stopped = false
 
+  // Следующая итерация назначается в finally: любая неожиданная ошибка
+  // (в рассылке, в записи файла) не должна тихо остановить опрос на весь
+  // день — это выглядело бы как «данные просто перестали приходить».
   const tick = async () => {
     if (stopped) return
-    const updated = await pollOnce(state, { url, fetchImpl })
-    if (updated && onUpdate) onUpdate(state)
-    if (!stopped) setTimeout(tick, interval)
+    try {
+      const updated = await pollOnce(state, { url, fetchImpl })
+      if (updated && onUpdate) onUpdate(state)
+    } catch (err) {
+      console.error('[poller] непредвиденный сбой итерации:', err.message)
+    } finally {
+      if (!stopped) setTimeout(tick, interval)
+    }
   }
 
   tick()
