@@ -14,7 +14,23 @@ export function createDefaultState() {
     currentRun: { participantId: null, attemptLabel: 'Попытка 1', caption: '' },
     highlight: { participantId: null, caption: '', visible: false },
     award: { sportClass: null, place: 1, showAllThree: false },
+    // Ручные правки живут отдельно от данных опроса и накладываются
+    // поверх них после каждого успешного обновления. Иначе правка
+    // стиралась бы следующим опросом через несколько секунд —
+    // то есть ровно тогда, когда она и нужна.
+    overrides: {},
     participants: [],
+  }
+}
+
+const overrideKey = (participantId, attempt, field) => `${participantId}:${attempt}:${field}`
+
+export function applyOverrides(state) {
+  for (const [key, value] of Object.entries(state.overrides ?? {})) {
+    const [participantId, attemptNumber, field] = key.split(':')
+    const participant = state.participants.find(p => p.id === participantId)
+    const attempt = participant?.attempts?.find(a => a.n === Number(attemptNumber))
+    if (attempt) attempt[field] = value
   }
 }
 
@@ -27,6 +43,7 @@ export function applyParticipants(state, participants) {
 
   state.participants = participants
   state.lastSuccessfulPoll = Date.now()
+  applyOverrides(state)
   return true
 }
 
@@ -76,7 +93,17 @@ export function applyCommand(state, message) {
       const p = state.participants.find(x => x.id === payload?.participantId)
       const attempt = p?.attempts?.find(a => a.n === payload?.attempt)
       if (!attempt || !['time', 'penalty'].includes(payload?.field)) return false
-      attempt[payload.field] = payload.value
+
+      const key = overrideKey(payload.participantId, payload.attempt, payload.field)
+
+      // Пустое значение снимает правку и возвращает строку под управление
+      // опросчика — иначе ошибочную правку было бы не отменить.
+      if (payload.value === '' || payload.value === null) {
+        delete state.overrides[key]
+      } else {
+        state.overrides[key] = payload.value
+        attempt[payload.field] = payload.value
+      }
       return true
     }
 

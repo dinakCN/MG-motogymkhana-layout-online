@@ -28,7 +28,7 @@ function onKey(event) {
 
   if (event.key === 'Escape') {
     event.target.blur?.()
-    send('hideHighlight')
+    hideHighlight()
     return
   }
 
@@ -50,6 +50,26 @@ function publishRun(payload) {
   send('setCurrentRun', payload)
   send('setActiveScene', 'run')
 }
+
+// Сцена, на которую вернёмся после хайлайта. Хайлайт — вставка поверх
+// эфира, а не пункт назначения: после него кадр обязан вернуться туда,
+// откуда пришёл, иначе через 6 секунд в эфире останется пустота.
+let sceneBeforeHighlight = 'results'
+
+function showHighlight(payload) {
+  if (state.value?.activeScene !== 'highlight') {
+    sceneBeforeHighlight = state.value?.activeScene ?? 'results'
+  }
+  send('showHighlight', payload)
+  send('setActiveScene', 'highlight')
+}
+
+function hideHighlight() {
+  send('hideHighlight')
+  if (state.value?.activeScene === 'highlight') {
+    send('setActiveScene', sceneBeforeHighlight)
+  }
+}
 </script>
 
 <template>
@@ -69,8 +89,8 @@ function publishRun(payload) {
         />
         <HighlightBlock
           :preselected="selected"
-          @show="send('showHighlight', $event)"
-          @hide="send('hideHighlight')"
+          @show="showHighlight"
+          @hide="hideHighlight"
         />
         <AwardBlock
           :participants="participants"

@@ -20,6 +20,20 @@ function apply() {
   })
   value.value = ''
 }
+
+// Правка держится поверх данных сайта, пока её не снимут: пустое значение
+// возвращает ячейку под управление опросчика.
+function reset() {
+  if (!props.rider) return
+
+  emit('override', {
+    participantId: props.rider.id,
+    attempt: attempt.value,
+    field: field.value,
+    value: '',
+  })
+  value.value = ''
+}
 </script>
 
 <template>
@@ -44,7 +58,13 @@ function apply() {
       </div>
 
       <input v-model="value" class="input" placeholder="например 00:42.31" @keyup.enter="apply" />
-      <button class="btn danger wide" :disabled="!rider || !value" @click="apply">Применить</button>
+
+      <div class="row">
+        <button class="btn danger grow" :disabled="!rider || !value" @click="apply">Применить</button>
+        <button class="btn" :disabled="!rider" @click="reset">Снять правку</button>
+      </div>
+
+      <p class="note">Правка держится поверх данных сайта, пока её не снять.</p>
     </div>
   </div>
 </template>
@@ -64,5 +84,6 @@ function apply() {
 .warn { font-size: 12px; color: #d29922; }
 .who { font-size: 13px; }
 .row { display: flex; gap: 8px; }
-.wide { width: 100%; }
+.grow { flex: 1; }
+.note { font-size: 11px; color: #8b949e; }
 </style>

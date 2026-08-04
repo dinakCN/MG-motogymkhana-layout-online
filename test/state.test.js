@@ -96,6 +96,39 @@ describe('applyCommand', () => {
     expect(s.participants[0].fio).toBe('Болдов Иван')
   })
 
+  it('правка переживает следующий опрос — иначе она бесполезна', () => {
+    const s = createDefaultState()
+    const withAttempts = () => {
+      const r = rider('1', 'Болдов Иван')
+      r.attempts = [{ n: 1, time: '00:99.99', penalty: null }]
+      return r
+    }
+
+    applyParticipants(s, [withAttempts()])
+    applyCommand(s, { type: 'manualOverride', payload: { participantId: '1', attempt: 1, field: 'time', value: '00:42.31' } })
+    expect(s.participants[0].attempts[0].time).toBe('00:42.31')
+
+    // опросчик принёс свежие данные с сайта — правка должна устоять
+    applyParticipants(s, [withAttempts()])
+    expect(s.participants[0].attempts[0].time).toBe('00:42.31')
+  })
+
+  it('пустое значение снимает правку и возвращает данные сайта', () => {
+    const s = createDefaultState()
+    const withAttempts = () => {
+      const r = rider('1', 'Болдов Иван')
+      r.attempts = [{ n: 1, time: '00:99.99', penalty: null }]
+      return r
+    }
+
+    applyParticipants(s, [withAttempts()])
+    applyCommand(s, { type: 'manualOverride', payload: { participantId: '1', attempt: 1, field: 'time', value: '00:42.31' } })
+    applyCommand(s, { type: 'manualOverride', payload: { participantId: '1', attempt: 1, field: 'time', value: '' } })
+
+    applyParticipants(s, [withAttempts()])
+    expect(s.participants[0].attempts[0].time).toBe('00:99.99')
+  })
+
   it('игнорирует неизвестную команду', () => {
     const s = createDefaultState()
     expect(applyCommand(s, { type: 'что-то', payload: 1 })).toBe(false)
