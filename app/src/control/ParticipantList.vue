@@ -10,6 +10,7 @@ const props = defineProps({
   awardGroups: { type: Array, default: () => [] },
   riderGroups: { type: Object, default: () => ({}) },
   groupFilter: { type: String, default: null },
+  strictGroups: { type: Boolean, default: false },
 })
 const emit = defineEmits(['pick', 'group'])
 
@@ -33,12 +34,40 @@ const filtered = computed(() => {
   )
 })
 
-// Первый пункт снимает ручную пометку, то есть возвращает группу по классу.
-// Подписывать его текущей группой нельзя: у помеченного участника оба пункта
-// назывались бы одинаково, и оператор, выбрав верхний, молча выбил бы
-// человека из SB перед его церемонией.
-function byClass(rider) {
-  return groupsOf(rider, props.awardGroups, {})[0] ?? null
+const groupsFor = rider => groupsOf(rider, props.awardGroups, props.riderGroups)
+
+// Пункт меню подписывается «класс», если группу даёт класс участника.
+// Без подписи оператор не отличит унаследованную отметку от поставленной
+// руками и, сняв её, молча выбьет человека из зачёта, который тот и так
+// проходит.
+const byClass = rider => groupsOf(rider, props.awardGroups, {})
+
+const isManual = rider => Array.isArray(props.riderGroups[rider.id])
+
+function toggle(rider, name) {
+  const current = groupsFor(rider)
+  const has = current.includes(name)
+
+  // Жёсткое разделение переносит участника, мягкое добавляет зачёт: одна
+  // галочка не должна отнимать группу по классу, иначе человек тихо
+  // выпадет из церемонии, к которой уже готов. Повторный клик снимает
+  // отметку в обоих режимах — без этого «вне зачёта» было бы недостижимо
+  // в жёстком, хотя сервер такую пометку принимает.
+  const next = props.strictGroups
+    ? (has ? [] : [name])
+    : (has ? current.filter(n => n !== name) : [...current, name])
+
+  emit('group', { participantId: rider.id, groups: next })
+}
+
+// Не то же самое, что снять все отметки: сброс возвращает участника
+// к группе по классу, пустой список означает «вне зачёта».
+const reset = rider => emit('group', { participantId: rider.id, groups: null })
+
+// Меню закрыли — снимаем фокус с кнопки: иначе Enter и пробел снова
+// откроют его, а не уйдут туда, куда метил оператор.
+function onMenuToggle(event) {
+  if (event.newState === 'closed') document.activeElement?.blur?.()
 }
 </script>
 
@@ -53,22 +82,51 @@ function byClass(rider) {
     >
       <span class="cls">{{ rider.sportClass || '—' }}</span>
 
-      <!-- Нативный select: выпадающее меню и работа с клавиатуры достаются
-           даром. Цветом отмечена ручная пометка — её видно до церемонии.
-           @click.stop, чтобы выбор группы не считался выделением строки.
-           blur() после emit — иначе фокус остаётся в селекте: цифры 1-6
-           перестают переключать сцену, «/» не уходит в номер заезда, а
-           стрелки вверх-вниз в закрытом select тихо меняют группу участника. -->
-      <select
-        class="grp"
-        :class="{ manual: riderGroups[rider.id] }"
-        :value="riderGroups[rider.id]?.[0] ?? ''"
-        @click.stop
-        @change="emit('group', { participantId: rider.id, groups: $event.target.value ? [$event.target.value] : null }); $event.target.blur()"
-      >
-        <option value="">по классу · {{ byClass(rider) ?? 'вне групп' }}</option>
-        <option v-for="g in awardGroups" :key="g.name" :value="g.name">{{ g.name }}</option>
-      </select>
+      <!-- Групп у участника может быть несколько, поэтому вместо select —
+           бейджи и меню с галочками. Меню нативное (popover), а не
+           абсолютный блок: список скроллится с overflow-y, и меню внутри
+           него обрезалось бы по краю панели. Popover рисуется в top-layer,
+           а закрытие по Esc и по клику мимо достаётся даром.
+           @click.stop, чтобы работа с группами не считалась выделением
+           строки: клик по строке означает ровно одно — выбрать райдера. -->
+      <div class="grp" @click.stop>
+        <!-- Якорь именуется по участнику: popover живёт в top-layer и без
+             привязки всплыл бы в середине экрана, далеко от строки,
+             по которой щёлкнули. -->
+        <button
+          class="chips"
+          :class="{ manual: isManual(rider) }"
+          :style="{ anchorName: `--grp-${rider.id}` }"
+          :popovertarget="`grp-${rider.id}`"
+        >
+          <span v-for="name in groupsFor(rider).slice(0, 2)" :key="name" class="chip">{{ name }}</span>
+          <span v-if="groupsFor(rider).length > 2" class="chip">+{{ groupsFor(rider).length - 2 }}</span>
+          <span v-if="!groupsFor(rider).length" class="chip none">вне групп</span>
+          <span class="caret">▾</span>
+        </button>
+
+        <div
+          :id="`grp-${rider.id}`"
+          popover
+          class="menu"
+          :style="{ positionAnchor: `--grp-${rider.id}` }"
+          @toggle="onMenuToggle"
+        >
+          <p v-if="strictGroups" class="mode">только одна группа</p>
+          <button
+            v-for="g in awardGroups"
+            :key="g.name"
+            class="opt"
+            :class="{ on: groupsFor(rider).includes(g.name) }"
+            @click="toggle(rider, g.name)"
+          >
+            <span class="mark">{{ groupsFor(rider).includes(g.name) ? '✓' : '' }}</span>
+            <span class="name">{{ g.name }}</span>
+            <span v-if="byClass(rider).includes(g.name)" class="hint">класс</span>
+          </button>
+          <button class="reset" @click="reset(rider)">сбросить к классу</button>
+        </div>
+      </div>
 
       <span class="num tabular">{{ rider.number ?? '—' }}</span>
       <span class="fio">{{ rider.fio }}</span>
@@ -85,7 +143,7 @@ function byClass(rider) {
 
 .item {
   display: grid;
-  grid-template-columns: 42px 96px 38px 1fr 108px 88px;
+  grid-template-columns: 42px 176px 38px 1fr 108px 88px;
   gap: 8px;
   align-items: center;
   padding: 9px 10px;
@@ -112,19 +170,84 @@ function byClass(rider) {
   background: var(--accent-soft);
 }
 
-.grp {
-  font-size: 11px;
-  font-family: inherit;
-  color: var(--ink-dim);
-  background: rgba(255, 255, 255, 0.06);
+.grp { min-width: 0; }
+
+.chips {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 3px 6px;
   border: 0;
   border-radius: var(--r-pill);
-  padding: 3px 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink-dim);
+  font: inherit;
+  font-size: 11px;
   cursor: pointer;
-  max-width: 96px;
+  overflow: hidden;
 }
 
-.grp.manual { color: var(--accent); background: var(--accent-soft); }
+.chips.manual { color: var(--accent); background: var(--accent-soft); }
+.chip { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chip.none { color: var(--ink-faint); }
+.caret { margin-left: auto; opacity: 0.6; }
+
+.menu {
+  position: absolute;
+  /* Под кнопкой, выровнено по её левому краю. Внизу списка меню туда
+     не помещается — уходит вверх, а не за край экрана. */
+  position-area: block-end span-inline-end;
+  position-try-fallbacks: block-start span-inline-end;
+  margin: 4px 0;
+  min-width: 200px;
+  padding: 6px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: #1c1c1e;
+  color: var(--ink);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+
+.mode { margin: 2px 8px 6px; font-size: 11px; color: var(--ink-faint); }
+
+.opt {
+  display: grid;
+  grid-template-columns: 14px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.opt:hover { background: rgba(255, 255, 255, 0.08); }
+.opt.on .name { color: var(--accent); }
+.mark { color: var(--accent); }
+.hint { font-size: 11px; color: var(--ink-faint); }
+
+.reset {
+  width: 100%;
+  margin-top: 4px;
+  padding: 7px 8px 3px;
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: transparent;
+  color: var(--ink-faint);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.reset:hover { color: var(--ink); }
 
 .num { color: var(--ink-faint); }
 .fio { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

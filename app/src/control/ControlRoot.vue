@@ -29,6 +29,11 @@ function onKey(event) {
   const inField = ['INPUT', 'SELECT', 'TEXTAREA'].includes(event.target.tagName)
 
   if (event.key === 'Escape') {
+    // Открытое меню групп закрывает сам браузер, но событие всё равно
+    // всплывает сюда. Без этой проверки оператор, закрывая меню, заодно
+    // гасил бы хайлайт в эфире.
+    if (document.querySelector('[popover]:popover-open')) return
+
     event.target.blur?.()
     hideHighlight()
     return
@@ -132,6 +137,7 @@ function hideHighlight() {
             :award-groups="state.awardGroups ?? []"
             :rider-groups="state.riderGroups ?? {}"
             :group-filter="onlyGroup ? state.award.subject : null"
+            :strict-groups="state.strictGroups ?? false"
             @pick="selected = $event"
             @group="send('setRiderGroup', $event)"
           />
