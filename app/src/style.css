@@ -1,3 +1,5 @@
+@import './fonts.css';
+
 :root {
   /* Системная палитра macOS: акценты взяты один в один, чтобы графика
      читалась как продолжение интерфейса, а не как его имитация. */
@@ -44,9 +46,7 @@ html, body, #app {
   overflow: hidden;
   background: transparent;
   color: var(--ink);
-  font-family: -apple-system, 'SF Pro Display', 'SF Pro Text', 'Inter',
-    'Helvetica Neue', sans-serif;
-  font-feature-settings: 'ss01', 'cv01';
+  font-family: 'Golos Text', -apple-system, 'SF Pro Display', 'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 

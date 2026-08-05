@@ -184,9 +184,12 @@ const face = computed(() => {
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.85);
 }
 
+/* 56, а не 62: у Golos Text цифры шире системных, и сетка 00:00.0000
+   при 62 занимала 346 px из 348 доступных — запас в два пикселя запасом
+   не является. */
 .val {
   position: relative;
-  font-size: 62px;
+  font-size: 56px;
   font-weight: 640;
   letter-spacing: -0.02em;
   line-height: 1.02;

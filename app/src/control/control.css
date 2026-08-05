@@ -1,3 +1,5 @@
+@import '../fonts.css';
+
 :root {
   --accent: #ff9f0a;
   --accent-soft: rgba(255, 159, 10, 0.16);
@@ -27,8 +29,10 @@
   height: 100vh;
   overflow: hidden;
   color: var(--ink);
-  font-family: -apple-system, 'SF Pro Text', 'SF Pro Display', 'Inter',
-    'Helvetica Neue', sans-serif;
+  /* Тот же шрифт, что в кадре: объявление одно на обе страницы, в fonts.css.
+     Пульт и оверлей должны выглядеть одним продуктом — оператор весь день
+     смотрит то в одно, то в другое. */
+  font-family: 'Golos Text', -apple-system, 'SF Pro Text', 'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
 
   /* Обои под стеклом: без цветной подложки материал не читался бы
