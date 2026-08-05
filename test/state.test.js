@@ -711,3 +711,11 @@ describe('сход в заезде', () => {
     expect(state.currentRun.dnf).toBe(false)
   })
 })
+
+describe('сцена «Чистый кадр»', () => {
+  it('сервер её принимает', () => {
+    const s = createDefaultState()
+    expect(applyCommand(s, { type: 'setActiveScene', payload: 'clean' })).toBe(true)
+    expect(s.activeScene).toBe('clean')
+  })
+})

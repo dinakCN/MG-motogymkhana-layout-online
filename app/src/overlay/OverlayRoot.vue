@@ -7,6 +7,7 @@ import HighlightScene from './HighlightScene.vue'
 import BreakScene from './BreakScene.vue'
 import AwardScene from './AwardScene.vue'
 import IdleScene from './IdleScene.vue'
+import CleanScene from './CleanScene.vue'
 import '../style.css'
 
 const SCENES = {
@@ -16,6 +17,7 @@ const SCENES = {
   break: BreakScene,
   award: AwardScene,
   idle: IdleScene,
+  clean: CleanScene,
 }
 
 const { state } = useSocket()

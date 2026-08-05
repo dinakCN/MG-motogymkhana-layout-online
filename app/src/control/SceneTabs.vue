@@ -9,6 +9,7 @@ const SCENES = [
   { key: 'break', label: 'Пауза', hot: '4' },
   { key: 'award', label: 'Награждение', hot: '5' },
   { key: 'idle', label: 'Заставка', hot: '6' },
+  { key: 'clean', label: 'Чистый кадр', hot: '7' },
 ]
 </script>
 
