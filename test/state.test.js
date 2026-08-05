@@ -644,3 +644,70 @@ describe('показания таймера', () => {
     expect(state.timer).toBeNull()
   })
 })
+
+describe('сход в заезде', () => {
+  const started = (state, participantId, attemptLabel = 'Попытка 2') => {
+    applyCommand(state, { type: 'setCurrentRun', payload: { participantId, attemptLabel, caption: '' } })
+    state.timer = { phase: 'running', startedAt: 1, time: null, updatedAt: 2 }
+  }
+
+  it('по умолчанию схода нет', () => {
+    expect(createDefaultState().currentRun.dnf).toBe(false)
+  })
+
+  it('пульт помечает сход и снимает пометку', () => {
+    const state = createDefaultState()
+    expect(applyCommand(state, { type: 'setRunDnf', payload: true })).toBe(true)
+    expect(state.currentRun.dnf).toBe(true)
+
+    applyCommand(state, { type: 'setRunDnf', payload: false })
+    expect(state.currentRun.dnf).toBe(false)
+  })
+
+  // Оператор дописывает подпись прямо во время заезда, и это тот же заезд:
+  // сбрасывать здесь показания значило бы гасить живой отсчёт посреди трассы.
+  it('правка подписи того же заезда не трогает ни таймер, ни сход', () => {
+    const state = createDefaultState()
+    started(state, 'первый')
+    applyCommand(state, { type: 'setRunDnf', payload: true })
+
+    applyCommand(state, {
+      type: 'setCurrentRun',
+      payload: { participantId: 'первый', attemptLabel: 'Попытка 2', caption: 'чемпион области' },
+    })
+
+    expect(state.timer).not.toBeNull()
+    expect(state.currentRun.dnf).toBe(true)
+    expect(state.currentRun.caption).toBe('чемпион области')
+  })
+
+  it('новый райдер обнуляет и показания, и сход', () => {
+    const state = createDefaultState()
+    started(state, 'первый')
+    applyCommand(state, { type: 'setRunDnf', payload: true })
+
+    applyCommand(state, {
+      type: 'setCurrentRun',
+      payload: { participantId: 'второй', attemptLabel: 'Попытка 2', caption: '' },
+    })
+
+    expect(state.timer).toBeNull()
+    expect(state.currentRun.dnf).toBe(false)
+  })
+
+  // Вторая попытка того же спортсмена — другой заезд, и сход первой к ней
+  // отношения не имеет.
+  it('смена попытки у того же райдера тоже обнуляет', () => {
+    const state = createDefaultState()
+    started(state, 'первый', 'Попытка 1')
+    applyCommand(state, { type: 'setRunDnf', payload: true })
+
+    applyCommand(state, {
+      type: 'setCurrentRun',
+      payload: { participantId: 'первый', attemptLabel: 'Попытка 2', caption: '' },
+    })
+
+    expect(state.timer).toBeNull()
+    expect(state.currentRun.dnf).toBe(false)
+  })
+})

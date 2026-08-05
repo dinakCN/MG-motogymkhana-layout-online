@@ -31,6 +31,7 @@ const sceneHeight = computed(() => (props.state.currentRun.caption ? '190px' : '
       :rider="rider"
       :attempt-label="state.currentRun.attemptLabel"
       :timer="state.timer ?? null"
+      :dnf="state.currentRun.dnf ?? false"
     />
     <ClassTop
       v-if="(state.showClassTop ?? true) && rider.sportClass"

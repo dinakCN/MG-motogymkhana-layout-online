@@ -9,7 +9,7 @@ const props = defineProps({
   showRunTime: { type: Boolean, default: true },
   showClassTop: { type: Boolean, default: true },
 })
-const emit = defineEmits(['publish', 'option'])
+const emit = defineEmits(['publish', 'option', 'dnf'])
 
 const numberInput = ref('')
 const attempt = ref(1)
@@ -95,6 +95,19 @@ defineExpose({ focusNumber: () => numberField.value?.focus() })
       {{ onAir ? 'Обновить в эфире' : 'В эфир' }}
     </button>
 
+    <!-- Жать, как только видно, что спортсмен не доедет, — не дожидаясь
+         остановки таймера: судья остановит его и на сходе, но это время
+         не результат. Пометка снимается сама со сменой заезда. -->
+    <button
+      class="btn wide dnf"
+      :class="{ on: currentRun.dnf }"
+      :disabled="!currentRun.participantId"
+      @click="emit('dnf', !currentRun.dnf)"
+    >
+      {{ currentRun.dnf ? 'Сход в кадре — снять' : 'Сход' }}
+      <span class="hint">S</span>
+    </button>
+
     <div class="options">
       <label class="switch">
         <span class="name">Время в кадре</span>
@@ -167,6 +180,21 @@ defineExpose({ focusNumber: () => numberField.value?.focus() })
 }
 
 .wide { width: 100%; margin-top: 10px; }
+
+/* Сход — не ошибка оператора и не авария, поэтому кнопка обычная. Но пока
+   пометка в кадре, её видно с другого конца комнаты: забытый сход означает,
+   что у следующего спортсмена вместо времени стоит слово. */
+.dnf { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.dnf .hint { font-size: 11px; color: var(--ink-faint); font-family: ui-monospace, Menlo, monospace; }
+
+.dnf.on {
+  background: rgba(255, 214, 10, 0.16);
+  border-color: rgba(255, 214, 10, 0.45);
+  color: var(--warn);
+  font-weight: 620;
+}
+
+.dnf.on .hint { color: rgba(255, 214, 10, 0.5); }
 
 /* Настройки сцены отделены от команд: кнопка «В эфир» меняет кадр,
    тумблеры — то, из чего он собран. Смешивать их в один столбец значит

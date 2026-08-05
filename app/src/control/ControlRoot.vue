@@ -55,6 +55,12 @@ function onKey(event) {
   if (event.code === 'KeyT') {
     send('setSceneOption', { option: 'showRunTime', value: !(state.value?.showRunTime ?? true) })
   }
+
+  // Сход помечают в те же секунды, когда спортсмен встал, — тянуться мышью
+  // в этот момент некогда. Пометка снимается той же клавишей.
+  if (event.code === 'KeyS' && state.value?.currentRun?.participantId) {
+    send('setRunDnf', !(state.value?.currentRun?.dnf ?? false))
+  }
 }
 
 onMounted(() => window.addEventListener('keydown', onKey))
@@ -99,6 +105,7 @@ function hideHighlight() {
           :show-class-top="state.showClassTop ?? true"
           @publish="publishRun"
           @option="send('setSceneOption', $event)"
+          @dnf="send('setRunDnf', $event)"
         />
         <HighlightBlock
           :preselected="selected"

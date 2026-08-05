@@ -37,7 +37,11 @@ export function createDefaultState() {
     activeScene: 'results',
     round: 'round1',
     lastSuccessfulPoll: 0,
-    currentRun: { participantId: null, attemptLabel: 'Попытка 1', caption: '' },
+    // dnf — пометка оператора «спортсмен не доедет». Живёт ровно один заезд:
+    // судья остановит таймер и на сходе, но это время не результат, и в кадр
+    // ему нельзя. Пометка ничего не решает в зачёте — она только запрещает
+    // показ, как тумблер, но точечно.
+    currentRun: { participantId: null, attemptLabel: 'Попытка 1', caption: '', dnf: false },
     // Показания таймера со второго ноутбука. Заполняет мост, когда его
     // поднимут; до тех пор здесь null, и зона времени показывает в кадре
     // время первой попытки вместо живого отсчёта.
@@ -179,16 +183,37 @@ export function applyCommand(state, message) {
       state.round = payload
       return true
 
-    case 'setCurrentRun':
+    case 'setCurrentRun': {
+      const participantId = payload?.participantId ?? null
+      const attemptLabel = payload?.attemptLabel ?? 'Попытка 1'
+
+      // Тот же заезд — это тот же спортсмен на той же попытке. Команда
+      // прилетает и когда оператор дописывает подпись прямо во время
+      // проезда: обнулять там показания значило бы гасить живой отсчёт
+      // посреди трассы. Вторая попытка — уже другой заезд.
+      const sameRun = participantId !== null
+        && participantId === state.currentRun.participantId
+        && attemptLabel === state.currentRun.attemptLabel
+
       state.currentRun = {
-        participantId: payload?.participantId ?? null,
-        attemptLabel: payload?.attemptLabel ?? 'Попытка 1',
+        participantId,
+        attemptLabel,
         caption: payload?.caption ?? '',
+        dnf: sameRun ? Boolean(state.currentRun.dnf) : false,
       }
+
       // Показания предыдущего заезда с новым райдером не переносятся: иначе
       // финишное время предыдущего спортсмена подписалось бы под именем
       // следующего — ошибка, которую в эфире не отличить от правды.
-      state.timer = null
+      if (!sameRun) state.timer = null
+      return true
+    }
+
+    // Сход помечает оператор, как только видит, что спортсмен не доедет, —
+    // не дожидаясь остановки таймера. Пометка сильнее показаний моста:
+    // пришедший следом финиш в кадр уже не попадёт.
+    case 'setRunDnf':
+      state.currentRun = { ...state.currentRun, dnf: Boolean(payload) }
       return true
 
     case 'setSceneOption': {

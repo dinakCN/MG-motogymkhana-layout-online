@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import {
   formatClock, attemptResultLabel, deltaToAttempt,
-  parseTimeToSeconds, formatDelta, fractionDigits,
+  parseTimeToSeconds, formatDelta, fractionDigits, DNF_LABEL,
 } from '../shared/format.js'
 
 const props = defineProps({
@@ -11,6 +11,9 @@ const props = defineProps({
   // Заполняет мост со второго ноутбука. Пока его нет — здесь null, и блок
   // работает во втором режиме: показывает время первой попытки.
   timer: { type: Object, default: null },
+  // Оператор пометил сход. Пометка сильнее показаний: судья остановит таймер
+  // и на сходе, но это время не результат.
+  dnf: { type: Boolean, default: false },
 })
 
 // Показания моста считаются протухшими через две секунды. Решение принимает
@@ -47,8 +50,9 @@ const elapsed = computed(() => {
 })
 
 // Разницу показываем только на финише и только когда есть с чем сравнивать.
+// На сходе сравнивать нечего: трасса не пройдена.
 const delta = computed(() => {
-  if (!live.value || props.timer.phase !== 'finished') return null
+  if (props.dnf || !live.value || props.timer.phase !== 'finished') return null
 
   const seconds = deltaToAttempt(
     parseTimeToSeconds(props.timer.time), props.rider, attemptNumber.value - 1,
@@ -87,6 +91,10 @@ const fallback = computed(() => (previousLabel.value
 
 // Что стоит в блоке: подпись, крупные цифры и притушенный хвост сетки.
 const face = computed(() => {
+  // Сход перебивает всё, что бы ни прислал мост: слово вместо цифр и без
+  // акцента — сход не достижение, красить его в цвет финиша нельзя.
+  if (props.dnf) return { label: 'Заезд', value: DNF_LABEL, tail: '', word: true }
+
   if (!live.value) return fallback.value
 
   if (props.timer.phase === 'finished') {
@@ -108,7 +116,7 @@ const face = computed(() => {
 <template>
   <div v-if="face" class="time">
     <div class="lab">{{ face.label }}</div>
-    <div class="val tabular" :class="{ gold: face.gold, dim: face.dim }">
+    <div class="val tabular" :class="{ gold: face.gold, dim: face.dim, word: face.word }">
       {{ face.value }}<span v-if="face.tail" class="tail">{{ face.tail }}</span>
     </div>
 
@@ -117,7 +125,7 @@ const face = computed(() => {
     </div>
     <!-- Когда крупными цифрами уже стоит время первой попытки, повторять
          его строкой ниже незачем. -->
-    <div v-else-if="live && previousLabel && !face.isFallback" class="prev">
+    <div v-else-if="previousLabel && !face.isFallback" class="prev">
       {{ attemptNumber - 1 }}-я попытка <b>{{ previousLabel }}</b>
     </div>
   </div>
@@ -188,6 +196,10 @@ const face = computed(() => {
 
 .val.gold { color: var(--accent); }
 .val.dim { color: var(--ink-faint); }
+
+/* Слово вместо времени. Кегль меньше цифрового: «сход» — не результат,
+   и вставать на место финишной цифры в полный рост ему незачем. */
+.val.word { font-size: 44px; color: var(--ink-dim); letter-spacing: -0.01em; }
 
 /* Хвост сетки знакомест 00:00.0000 стоит серым всегда: без него цифры
    на финише разъехались бы и блок прыгнул. */
