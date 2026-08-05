@@ -23,12 +23,17 @@ defineProps({ state: { type: Object, required: true } })
    целиком — если микшер ставит свои титры, они не столкнутся с нашими. */
 .clean { width: 100%; height: 100%; position: relative; }
 
-/* Середины плашки и жучка стоят на одной линии: у жучка высота 74 при
-   top 32, у плашки 60 — отсюда top 39. Поля 48 симметричны с обеих сторон. */
+/* Середины плашки и жучка стоят на одной линии. Считает её браузер:
+   верх плитки (32) плюс её половина, минус половина собственной высоты
+   через translateY. Так плашке не нужно знать ни свою высоту, ни высоту
+   жучка — прежние «top: 39» после первого же изменения габаритов уехали
+   бы. Поля 72 симметричны с обеих сторон и совпадают с полями карточки
+   райдера в сцене заезда: вся графика живёт в одних краях кадра. */
 .title {
   position: absolute;
-  left: 48px;
-  top: 39px;
+  left: 72px;
+  top: calc(32px + var(--band-h) / 2);
+  transform: translateY(-50%);
   padding: 13px 22px;
   border-radius: var(--r-md);
   font-size: 26px;
@@ -37,8 +42,11 @@ defineProps({ state: { type: Object, required: true } })
   animation: title-in 350ms ease-out;
 }
 
+/* -50% по вертикали держится и в кадрах анимации: transform один на весь
+   элемент, и выезд «только по X» на самом деле сбросил бы центровку —
+   плашка стартовала бы на 30 px ниже и доезжала рывком. */
 @keyframes title-in {
-  from { opacity: 0; transform: translateX(-40px); }
-  to   { opacity: 1; transform: translateX(0); }
+  from { opacity: 0; transform: translate(-40px, -50%); }
+  to   { opacity: 1; transform: translate(0, -50%); }
 }
 </style>
