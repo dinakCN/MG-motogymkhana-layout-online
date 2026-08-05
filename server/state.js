@@ -28,11 +28,19 @@ export function createDefaultState() {
     // Здесь — чтобы состояние было полным даже без него, например в тестах.
     liveStageId: null,
     highlightTimeout: 6000,
-    showClassTop5: true,
+    // Тумблеры сцены заезда. Живут в состоянии, а не только в конфиге:
+    // оператор гасит их из пульта, и оверлей обязан узнать об этом тем же
+    // сообщением, что и все остальные — разойтись они не могут.
+    showRunTime: true,
+    showClassTop: true,
     activeScene: 'results',
     round: 'round1',
     lastSuccessfulPoll: 0,
     currentRun: { participantId: null, attemptLabel: 'Попытка 1', caption: '' },
+    // Показания таймера со второго ноутбука. Заполняет мост, когда его
+    // поднимут; до тех пор здесь null, и зона времени показывает в кадре
+    // время первой попытки вместо живого отсчёта.
+    timer: null,
     // returnScene живёт в состоянии, а не в пульте: перезагруженная вкладка
     // пульта не должна забыть, куда возвращать кадр после хайлайта.
     highlight: { participantId: null, caption: '', visible: false, returnScene: 'results' },
@@ -158,7 +166,19 @@ export function applyCommand(state, message) {
         attemptLabel: payload?.attemptLabel ?? 'Попытка 1',
         caption: payload?.caption ?? '',
       }
+      // Показания предыдущего заезда с новым райдером не переносятся: иначе
+      // финишное время предыдущего спортсмена подписалось бы под именем
+      // следующего — ошибка, которую в эфире не отличить от правды.
+      state.timer = null
       return true
+
+    case 'setSceneOption': {
+      const OPTIONS = ['showRunTime', 'showClassTop']
+      if (!OPTIONS.includes(payload?.option)) return false
+
+      state[payload.option] = Boolean(payload.value)
+      return true
+    }
 
     case 'showHighlight':
       state.highlight = {

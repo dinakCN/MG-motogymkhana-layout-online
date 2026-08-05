@@ -27,7 +27,8 @@ state.stageId = config.stageId
 state.eventTitle = config.eventTitle
 state.liveStageId = config.liveStageId
 state.highlightTimeout = config.highlightTimeout
-state.showClassTop5 = config.showClassTop5
+state.showRunTime = config.showRunTime
+state.showClassTop = config.showClassTop
 state.awardGroups = config.awardGroups
 
 const app = express()

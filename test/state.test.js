@@ -520,3 +520,63 @@ describe('состояние награждения по группам', () => 
     rmSync(path, { force: true })
   })
 })
+
+describe('тумблеры сцены заезда', () => {
+  it('по умолчанию оба включены', () => {
+    const state = createDefaultState()
+    expect(state.showRunTime).toBe(true)
+    expect(state.showClassTop).toBe(true)
+  })
+
+  it('пульт гасит зону времени', () => {
+    const state = createDefaultState()
+    expect(applyCommand(state, {
+      type: 'setSceneOption',
+      payload: { option: 'showRunTime', value: false },
+    })).toBe(true)
+    expect(state.showRunTime).toBe(false)
+  })
+
+  it('пульт гасит топ-3', () => {
+    const state = createDefaultState()
+    applyCommand(state, { type: 'setSceneOption', payload: { option: 'showClassTop', value: false } })
+    expect(state.showClassTop).toBe(false)
+  })
+
+  // Неизвестная опция означает, что пульт и сервер разошлись версиями.
+  // Приняв её, сервер завёл бы в состоянии поле, которое никто не читает.
+  it('неизвестная опция отвергается и состояния не меняет', () => {
+    const state = createDefaultState()
+    expect(applyCommand(state, {
+      type: 'setSceneOption',
+      payload: { option: 'showEverything', value: false },
+    })).toBe(false)
+    expect(state.showEverything).toBeUndefined()
+  })
+
+  it('значение приводится к булеву', () => {
+    const state = createDefaultState()
+    applyCommand(state, { type: 'setSceneOption', payload: { option: 'showRunTime', value: 0 } })
+    expect(state.showRunTime).toBe(false)
+  })
+})
+
+describe('показания таймера', () => {
+  it('по умолчанию их нет', () => {
+    expect(createDefaultState().timer).toBeNull()
+  })
+
+  // Иначе финишное время предыдущего спортсмена подписалось бы под именем
+  // следующего — ошибка, которую в эфире не отличить от правды.
+  it('новый райдер в эфире обнуляет показания предыдущего', () => {
+    const state = createDefaultState()
+    state.timer = { phase: 'finished', startedAt: 1, time: '01:23.72', updatedAt: 2 }
+
+    applyCommand(state, {
+      type: 'setCurrentRun',
+      payload: { participantId: 'следующий', attemptLabel: 'Попытка 1', caption: '' },
+    })
+
+    expect(state.timer).toBeNull()
+  })
+})

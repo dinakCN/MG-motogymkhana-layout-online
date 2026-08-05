@@ -43,7 +43,8 @@ export function loadConfig(env = process.env, event = eventConfig) {
     liveStageId: live.stageId,
     pollInterval: Number(env.POLL_INTERVAL) || Number(event.pollInterval) || 7000,
     highlightTimeout: Number(env.HIGHLIGHT_TIMEOUT) || Number(event.highlightTimeout) || 6000,
-    showClassTop5: env.SHOW_CLASS_TOP5 ? env.SHOW_CLASS_TOP5 !== '0' : event.showClassTop5 !== false,
+    showRunTime: env.SHOW_RUN_TIME ? env.SHOW_RUN_TIME !== '0' : event.showRunTime !== false,
+    showClassTop: env.SHOW_CLASS_TOP ? env.SHOW_CLASS_TOP !== '0' : event.showClassTop !== false,
     // Переопределения переменной окружения у групп нет: подменять состав
     // награждения из командной строки незачем, а лишний способ ошибиться
     // перед эфиром стоит дороже гибкости.
