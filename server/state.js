@@ -50,9 +50,11 @@ export function createDefaultState() {
     award: { subject: null, place: 1, showAllThree: false },
     // Справочник групп приезжает из event.config.js при старте сервера.
     awardGroups: [],
-    // Ручные перемещения между группами. Живут отдельно от данных опроса
-    // по той же причине, что и overrides: participants перезаписываются
-    // целиком каждые семь секунд.
+    // Ручные перемещения между группами: { participantId: ['Любители',
+    // 'Круизер'] }. Групп может быть несколько — класс говорит о мастерстве,
+    // а Круизер и SB о мотоцикле. Живут отдельно от данных опроса по той же
+    // причине, что и overrides: participants перезаписываются целиком
+    // каждые семь секунд.
     riderGroups: {},
     // Ручные правки живут отдельно от данных опроса и накладываются
     // поверх них после каждого успешного обновления. Иначе правка
@@ -68,6 +70,20 @@ export function createDefaultState() {
 }
 
 const overrideKey = (participantId, attempt, field) => `${participantId}:${attempt}:${field}`
+
+// Состояние прошлой версии хранило одну группу строкой. Строку нужно
+// превратить в массив до первого использования: .includes на строке
+// сравнивает подстроки, и 'SB'.includes('S') истинно — участник уехал бы
+// в чужую группу с похожим именем. Пустой массив значащий и сохраняется:
+// это «вне зачёта», а не отсутствие пометки.
+function normalizeRiderGroups(riderGroups) {
+  const out = {}
+  for (const [id, value] of Object.entries(riderGroups ?? {})) {
+    if (typeof value === 'string') out[id] = [value]
+    else if (Array.isArray(value)) out[id] = value.filter(name => typeof name === 'string')
+  }
+  return out
+}
 
 // Аварийную правку набирают руками и в спешке. Значение, которое не
 // разберётся дальше, хуже отсутствующего: время в чужом формате осело бы
@@ -222,19 +238,30 @@ export function applyCommand(state, message) {
       const p = state.participants.find(x => x.id === payload?.participantId)
       if (!p) return false
 
-      const group = payload?.group ?? null
+      const groups = payload?.groups ?? null
 
       // Пустое значение возвращает участника в группу по его классу.
-      if (group === null) {
+      // Пустой массив — не то же самое: он значит «вне зачёта».
+      if (groups === null) {
         delete state.riderGroups[payload.participantId]
         return true
       }
+      if (!Array.isArray(groups)) return false
+
+      const known = state.awardGroups ?? []
+      const unique = [...new Set(groups)]
 
       // UNGROUPED сюда не принимается: это вычисляемое место сбора тех, чей
       // класс не нашёлся, а не группа, в которую можно кого-то положить.
-      if (!(state.awardGroups ?? []).some(g => g.name === group)) return false
+      // Хоть одно негодное имя — отвергается вся команда: выполненная
+      // наполовину, она оставила бы человека не в тех группах.
+      if (unique.some(name => !known.some(g => g.name === name))) return false
 
-      state.riderGroups[payload.participantId] = group
+      // Порядок конфига, а не кликов: бейджи в строке пульта не должны
+      // переставляться от того, в какой последовательности их ставили.
+      state.riderGroups[payload.participantId] = known
+        .filter(g => unique.includes(g.name))
+        .map(g => g.name)
       return true
     }
 
@@ -311,5 +338,7 @@ export function loadState(path) {
 
     state[key] = bothPlainObjects ? { ...base, ...value } : value
   }
+
+  state.riderGroups = normalizeRiderGroups(state.riderGroups)
   return state
 }

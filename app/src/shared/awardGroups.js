@@ -4,6 +4,10 @@ import { bestSeconds } from './format.js'
 // Награждают не по классам, а по их объединениям: на этапе 677 это
 // Спортсмены (D1-B), Любители (D2-D3), Новички (N-D4), Круизер и SB.
 // Состав задаётся в event.config.js, ручные перемещения — в пульте.
+//
+// Групп у участника может быть несколько: класс говорит о мастерстве,
+// а Круизер и SB — о мотоцикле, и D2-шник на круизере награждается
+// в обоих зачётах. Запретить это этап может ключом strictGroups.
 // ────────────────────────────────────────────────────────────────────────
 
 // Участники, чей класс не попал ни в одну группу. Не хранится, а
@@ -11,17 +15,21 @@ import { bestSeconds } from './format.js'
 // Без него человек с незнакомым классом молча пропал бы из награждения.
 export const UNGROUPED = 'Вне групп'
 
-export function groupOf(rider, groups = [], riderGroups = {}) {
-  // Ручная пометка важнее класса: Круизер и SB из протокола не выводятся
-  // вообще — их определяет мотоцикл, а не индекс класса.
+export function groupsOf(rider, groups = [], riderGroups = {}) {
+  // Ручной список — полный ответ, включая пустой: пустой значит «вне
+  // зачёта», и подставлять вместо него класс нельзя. Круизер и SB из
+  // протокола не выводятся вообще — их определяет мотоцикл, а не индекс
+  // класса, поэтому набранное руками всегда важнее вычисленного.
   const manual = riderGroups[rider?.id]
-  if (manual) return manual
+  if (Array.isArray(manual)) return manual
 
   const sportClass = rider?.sportClass
-  if (!sportClass) return null
+  if (!sportClass) return []
 
+  // Класс, попавший сразу в две группы, — опечатка в конфиге, а не способ
+  // задать двойной зачёт: двойной задаётся пометкой.
   const group = groups.find(g => (g.classes || []).includes(sportClass))
-  return group ? group.name : null
+  return group ? [group.name] : []
 }
 
 // Группа известна, только если она есть в справочнике: пометка могла
@@ -35,8 +43,12 @@ export function groupsWithCounts(participants = [], groups = [], riderGroups = {
   let ungrouped = 0
 
   for (const rider of participants) {
-    const name = groupOf(rider, groups, riderGroups)
-    if (isKnown(name, groups)) counts.set(name, counts.get(name) + 1)
+    const known = groupsOf(rider, groups, riderGroups).filter(n => isKnown(n, groups))
+
+    // В мягком режиме сумма счётчиков больше числа участников: тот, кто
+    // едет и в «Любителях», и в «Круизере», посчитан дважды — и это ровно
+    // то, ради чего режим включают.
+    if (known.length) for (const name of known) counts.set(name, counts.get(name) + 1)
     else ungrouped += 1
   }
 
@@ -50,8 +62,10 @@ export function ridersOfGroup(participants = [], name, groups = [], riderGroups 
 
   return participants
     .filter((rider) => {
-      const group = groupOf(rider, groups, riderGroups)
-      return name === UNGROUPED ? !isKnown(group, groups) : group === name
+      const names = groupsOf(rider, groups, riderGroups)
+      return name === UNGROUPED
+        ? !names.some(n => isKnown(n, groups))
+        : names.includes(name)
     })
     // Похоже на topOfClass из format.js, но объединять нельзя: тот сначала
     // сортирует по placeInClass, а здесь это запрещено — сайт считает места

@@ -111,7 +111,7 @@ describe.each(STAGES)('этап %s — подиум группы совпада�
       участники,
       name,
       [{ name, classes: [] }],
-      Object.fromEntries(участники.map(p => [p.id, name])),
+      Object.fromEntries(участники.map(p => [p.id, [name]])),
     ).map(p => p.fio)
 
     const сайт = cats

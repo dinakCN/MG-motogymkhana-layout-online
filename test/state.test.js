@@ -460,36 +460,69 @@ describe('setAward', () => {
 })
 
 describe('setRiderGroup', () => {
-  it('перемещает участника в другую группу', () => {
+  const setGroups = (s, participantId, groups) =>
+    applyCommand(s, { type: 'setRiderGroup', payload: { participantId, groups } })
+
+  it('ставит участнику список групп', () => {
     const s = withGroups()
-    expect(applyCommand(s, { type: 'setRiderGroup', payload: { participantId: '1', group: 'SB' } })).toBe(true)
-    expect(s.riderGroups['1']).toBe('SB')
+    expect(setGroups(s, '1', ['SB'])).toBe(true)
+    expect(s.riderGroups['1']).toEqual(['SB'])
+  })
+
+  it('принимает две группы — класс и мотоцикл', () => {
+    const s = withGroups()
+    expect(setGroups(s, '1', ['Любители', 'SB'])).toBe(true)
+    expect(s.riderGroups['1']).toEqual(['Любители', 'SB'])
+  })
+
+  it('схлопывает дубли и выстраивает порядок по конфигу, а не по кликам', () => {
+    const s = withGroups()
+    setGroups(s, '1', ['SB', 'Любители', 'SB'])
+    expect(s.riderGroups['1']).toEqual(['Любители', 'SB'])
+  })
+
+  it('пустой список принимается — это «вне зачёта», а не сброс к классу', () => {
+    const s = withGroups()
+    expect(setGroups(s, '1', [])).toBe(true)
+    expect(s.riderGroups['1']).toEqual([])
   })
 
   it('null возвращает участника в группу по его классу', () => {
     const s = withGroups()
-    applyCommand(s, { type: 'setRiderGroup', payload: { participantId: '1', group: 'SB' } })
-    expect(applyCommand(s, { type: 'setRiderGroup', payload: { participantId: '1', group: null } })).toBe(true)
+    setGroups(s, '1', ['SB'])
+    expect(setGroups(s, '1', null)).toBe(true)
     expect(s.riderGroups['1']).toBeUndefined()
   })
 
   it('отвергает неизвестную группу и «Вне групп» — она вычисляется, а не хранится', () => {
     const s = withGroups()
-    expect(applyCommand(s, { type: 'setRiderGroup', payload: { participantId: '1', group: 'Ветераны' } })).toBe(false)
-    expect(applyCommand(s, { type: 'setRiderGroup', payload: { participantId: '1', group: UNGROUPED } })).toBe(false)
+    expect(setGroups(s, '1', ['Ветераны'])).toBe(false)
+    expect(setGroups(s, '1', [UNGROUPED])).toBe(false)
+    expect(s.riderGroups).toEqual({})
+  })
+
+  it('отвергает всю команду, если хоть одна группа неизвестна', () => {
+    const s = withGroups()
+    expect(setGroups(s, '1', ['SB', 'Ветераны'])).toBe(false)
+    expect(s.riderGroups).toEqual({})
+  })
+
+  it('отвергает не массив — payload прошлой версии не должен пролезть', () => {
+    const s = withGroups()
+    expect(setGroups(s, '1', 'SB')).toBe(false)
     expect(s.riderGroups).toEqual({})
   })
 
   it('отвергает несуществующего участника', () => {
     const s = withGroups()
-    expect(applyCommand(s, { type: 'setRiderGroup', payload: { participantId: '99', group: 'SB' } })).toBe(false)
+    expect(setGroups(s, '99', ['SB'])).toBe(false)
   })
 
   it('пометка переживает опрос — иначе стёрлась бы через семь секунд', () => {
     const s = withGroups()
-    applyCommand(s, { type: 'setRiderGroup', payload: { participantId: '1', group: 'SB' } })
+    setGroups(s, '1', ['SB'])
     applyParticipants(s, [rider('1', 'Болдов Иван'), rider('2', 'Петров Илья')])
-    expect(s.riderGroups['1']).toBe('SB')
+    expect(s.riderGroups['1']).toEqual(['SB'])
   })
 })
 
@@ -517,6 +550,19 @@ describe('состояние награждения по группам', () => 
     const s = loadState(path)
     expect(s.activeScene).toBe('award')
     expect(s.award.subject).toBe(null)
+    rmSync(path, { force: true })
+  })
+
+  it('состояние прошлой версии со строкой в riderGroups нормализуется в массив', () => {
+    const path = 'test/tmp-rider-groups-state.json'
+    writeFileSync(path, JSON.stringify({
+      riderGroups: { 1: 'SB', 2: ['Любители', 'Круизер'], 3: [], 4: 42 },
+    }), 'utf-8')
+
+    // 'SB'.includes('S') истинно, поэтому строку нельзя оставлять как есть:
+    // участник уехал бы в чужую группу с похожим именем.
+    const s = loadState(path)
+    expect(s.riderGroups).toEqual({ 1: ['SB'], 2: ['Любители', 'Круизер'], 3: [] })
     rmSync(path, { force: true })
   })
 })

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  UNGROUPED, groupOf, groupsWithCounts, ridersOfGroup, podiumOf, clampPlace,
+  UNGROUPED, groupsOf, groupsWithCounts, ridersOfGroup, podiumOf, clampPlace,
 } from '../app/src/shared/awardGroups.js'
 
 const GROUPS = [
@@ -16,20 +16,29 @@ const rider = (id, sportClass, bestTime = null) => ({
   city: '', motorcycle: '', attempts: [], placeInClass: null,
 })
 
-describe('groupOf', () => {
+describe('groupsOf', () => {
   it('выводит группу из класса участника', () => {
-    expect(groupOf(rider('1', 'D3'), GROUPS, {})).toBe('Любители')
-    expect(groupOf(rider('2', 'B'), GROUPS, {})).toBe('Спортсмены')
-    expect(groupOf(rider('3', 'N'), GROUPS, {})).toBe('Новички')
+    expect(groupsOf(rider('1', 'D3'), GROUPS, {})).toEqual(['Любители'])
+    expect(groupsOf(rider('2', 'B'), GROUPS, {})).toEqual(['Спортсмены'])
+    expect(groupsOf(rider('3', 'N'), GROUPS, {})).toEqual(['Новички'])
   })
 
-  it('ручная пометка важнее класса — SB собирается только руками', () => {
-    expect(groupOf(rider('1', 'D3'), GROUPS, { 1: 'SB' })).toBe('SB')
+  it('ручной список перебивает класс целиком — SB собирается только руками', () => {
+    expect(groupsOf(rider('1', 'D3'), GROUPS, { 1: ['SB'] })).toEqual(['SB'])
   })
 
-  it('класс вне всех групп даёт null', () => {
-    expect(groupOf(rider('1', 'X9'), GROUPS, {})).toBe(null)
-    expect(groupOf(rider('2', ''), GROUPS, {})).toBe(null)
+  it('участник едет в двух зачётах сразу — класс и мотоцикл', () => {
+    expect(groupsOf(rider('1', 'D2'), GROUPS, { 1: ['Любители', 'Круизер'] }))
+      .toEqual(['Любители', 'Круизер'])
+  })
+
+  it('пустой список — вне зачёта, а не возврат к классу', () => {
+    expect(groupsOf(rider('1', 'D3'), GROUPS, { 1: [] })).toEqual([])
+  })
+
+  it('класс вне всех групп даёт пустой список', () => {
+    expect(groupsOf(rider('1', 'X9'), GROUPS, {})).toEqual([])
+    expect(groupsOf(rider('2', ''), GROUPS, {})).toEqual([])
   })
 })
 
@@ -47,7 +56,7 @@ describe('groupsWithCounts', () => {
 
   it('ручное перемещение переносит человека между счётчиками', () => {
     const list = [rider('1', 'D2'), rider('2', 'D3')]
-    expect(groupsWithCounts(list, GROUPS, { 1: 'SB' })).toEqual([
+    expect(groupsWithCounts(list, GROUPS, { 1: ['SB'] })).toEqual([
       { name: 'Спортсмены', count: 0 },
       { name: 'Любители', count: 1 },
       { name: 'Новички', count: 0 },
@@ -62,6 +71,21 @@ describe('groupsWithCounts', () => {
 
     const broken = groupsWithCounts([rider('1', 'D2'), rider('2', 'X9')], GROUPS, {})
     expect(broken.at(-1)).toEqual({ name: UNGROUPED, count: 1 })
+  })
+
+  it('сумма счётчиков больше числа участников, когда кто-то в двух группах', () => {
+    const list = [rider('1', 'D2'), rider('2', 'N')]
+    const rows = groupsWithCounts(list, GROUPS, { 1: ['Любители', 'Круизер'] })
+
+    expect(rows.find(r => r.name === 'Любители').count).toBe(1)
+    expect(rows.find(r => r.name === 'Круизер').count).toBe(1)
+    expect(rows.reduce((sum, r) => sum + r.count, 0)).toBe(3)
+  })
+
+  it('пустой список уводит участника во «Вне групп», а не к классу', () => {
+    const rows = groupsWithCounts([rider('1', 'D2')], GROUPS, { 1: [] })
+    expect(rows.find(r => r.name === 'Любители').count).toBe(0)
+    expect(rows.at(-1)).toEqual({ name: UNGROUPED, count: 1 })
   })
 })
 
@@ -102,6 +126,25 @@ describe('ridersOfGroup', () => {
   it('без выбранной группы возвращает пустой список', () => {
     expect(ridersOfGroup([rider('1', 'D2')], null, GROUPS, {})).toEqual([])
   })
+
+  it('участник в двух группах попадает в оба состава', () => {
+    const list = [rider('1', 'D2', '01:30.00'), rider('2', 'D3', '01:40.00')]
+    const marks = { 1: ['Любители', 'Круизер'] }
+
+    expect(ridersOfGroup(list, 'Любители', GROUPS, marks).map(r => r.id)).toEqual(['1', '2'])
+    expect(ridersOfGroup(list, 'Круизер', GROUPS, marks).map(r => r.id)).toEqual(['1'])
+  })
+
+  it('участник без единой группы уходит во «Вне групп»', () => {
+    expect(ridersOfGroup([rider('1', 'D2')], UNGROUPED, GROUPS, { 1: [] }).map(r => r.id))
+      .toEqual(['1'])
+  })
+
+  it('пометка на группу из прошлого этапа не удерживает участника нигде', () => {
+    const list = [rider('1', 'D2')]
+    expect(ridersOfGroup(list, 'Любители', GROUPS, { 1: ['Ветераны'] })).toEqual([])
+    expect(ridersOfGroup(list, UNGROUPED, GROUPS, { 1: ['Ветераны'] }).map(r => r.id)).toEqual(['1'])
+  })
 })
 
 describe('podiumOf', () => {
@@ -131,8 +174,16 @@ describe('podiumOf', () => {
 
   it('ручное перемещение попадает на подиум своей новой группы', () => {
     const list = [rider('1', 'D2', '00:44.15'), rider('2', 'D3', '00:42.31')]
-    expect(podiumOf(list, 'SB', GROUPS, { 2: 'SB' }).map(r => r.id)).toEqual(['2'])
-    expect(podiumOf(list, 'Любители', GROUPS, { 2: 'SB' }).map(r => r.id)).toEqual(['1'])
+    expect(podiumOf(list, 'SB', GROUPS, { 2: ['SB'] }).map(r => r.id)).toEqual(['2'])
+    expect(podiumOf(list, 'Любители', GROUPS, { 2: ['SB'] }).map(r => r.id)).toEqual(['1'])
+  })
+
+  it('участник в двух группах едет на оба подиума — в этом и смысл', () => {
+    const list = [rider('1', 'D2', '00:44.15'), rider('2', 'D3', '00:42.31')]
+    const marks = { 1: ['Любители', 'Круизер'] }
+
+    expect(podiumOf(list, 'Круизер', GROUPS, marks).map(r => r.id)).toEqual(['1'])
+    expect(podiumOf(list, 'Любители', GROUPS, marks).map(r => r.id)).toEqual(['2', '1'])
   })
 })
 

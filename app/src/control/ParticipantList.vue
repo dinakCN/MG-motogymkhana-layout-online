@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { bestOf } from '../shared/format.js'
-import { groupOf, ridersOfGroup } from '../shared/awardGroups.js'
+import { groupsOf, ridersOfGroup } from '../shared/awardGroups.js'
 
 const props = defineProps({
   participants: { type: Array, required: true },
@@ -38,7 +38,7 @@ const filtered = computed(() => {
 // назывались бы одинаково, и оператор, выбрав верхний, молча выбил бы
 // человека из SB перед его церемонией.
 function byClass(rider) {
-  return groupOf(rider, props.awardGroups, {})
+  return groupsOf(rider, props.awardGroups, {})[0] ?? null
 }
 </script>
 
@@ -62,9 +62,9 @@ function byClass(rider) {
       <select
         class="grp"
         :class="{ manual: riderGroups[rider.id] }"
-        :value="riderGroups[rider.id] ?? ''"
+        :value="riderGroups[rider.id]?.[0] ?? ''"
         @click.stop
-        @change="emit('group', { participantId: rider.id, group: $event.target.value || null }); $event.target.blur()"
+        @change="emit('group', { participantId: rider.id, groups: $event.target.value ? [$event.target.value] : null }); $event.target.blur()"
       >
         <option value="">по классу · {{ byClass(rider) ?? 'вне групп' }}</option>
         <option v-for="g in awardGroups" :key="g.name" :value="g.name">{{ g.name }}</option>
