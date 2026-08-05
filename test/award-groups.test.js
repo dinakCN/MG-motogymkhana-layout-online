@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   UNGROUPED, groupsOf, groupsWithCounts, ridersOfGroup, podiumOf, clampPlace, conflictsOf,
-  nextGroups,
+  nextGroups, primaryGroup, topOfGroup,
 } from '../app/src/shared/awardGroups.js'
 
 const GROUPS = [
@@ -258,5 +258,122 @@ describe('clampPlace', () => {
   it('место ниже первого не появляется даже из испорченного состояния', () => {
     expect(clampPlace(0, 3)).toBe(1)
     expect(clampPlace(-2, 3)).toBe(1)
+  })
+})
+
+describe('primaryGroup', () => {
+  it('выводит группу из класса', () => {
+    expect(primaryGroup(rider('1', 'D3'), GROUPS, {})).toBe('Любители')
+    expect(primaryGroup(rider('2', 'B'), GROUPS, {})).toBe('Спортсмены')
+  })
+
+  // Кадр показывает одну колонку, и она не должна зависеть от того, в каком
+  // порядке оператор расставлял галочки: два одинаковых райдера показали бы
+  // разные группы.
+  it('из двух зачётов берёт тот, что выше в конфиге, а не первую пометку', () => {
+    expect(primaryGroup(rider('1', 'D2'), GROUPS, { 1: ['Круизер', 'Любители'] }))
+      .toBe('Любители')
+    expect(primaryGroup(rider('1', 'D2'), GROUPS, { 1: ['Любители', 'Круизер'] }))
+      .toBe('Любители')
+  })
+
+  it('ручная пометка перебивает класс', () => {
+    expect(primaryGroup(rider('1', 'D3'), GROUPS, { 1: ['SB'] })).toBe('SB')
+  })
+
+  it('вне зачёта и незнакомый класс группы не дают', () => {
+    expect(primaryGroup(rider('1', 'D3'), GROUPS, { 1: [] })).toBeNull()
+    expect(primaryGroup(rider('2', 'X9'), GROUPS, {})).toBeNull()
+    expect(primaryGroup(null, GROUPS, {})).toBeNull()
+  })
+})
+
+describe('topOfGroup', () => {
+  it('нумерует группу насквозь через классы: в «Любителях» первое место одно', () => {
+    const list = [
+      rider('1', 'D2', '00:44.15'),
+      rider('2', 'D3', '00:42.31'),
+      rider('3', 'D3', '00:43.80'),
+    ]
+    expect(topOfGroup(list, 'Любители', GROUPS, {})).toEqual([
+      { rider: list[1], place: 1 },
+      { rider: list[2], place: 2 },
+      { rider: list[0], place: 3 },
+    ])
+  })
+
+  it('три строки, даже когда в группе едет больше', () => {
+    const list = [
+      rider('1', 'D2', '00:44.15'),
+      rider('2', 'D3', '00:42.31'),
+      rider('3', 'D3', '00:43.80'),
+      rider('4', 'D2', '00:45.00'),
+    ]
+    expect(topOfGroup(list, 'Любители', GROUPS, {}).map(r => r.rider.id))
+      .toEqual(['2', '3', '1'])
+  })
+
+  // Место без результата — не ноль и не «четвёртый»: человек ещё не ехал.
+  it('не ехавшим и сошедшим места не выдаёт', () => {
+    const list = [
+      rider('1', 'D2', '00:44.15'),
+      rider('2', 'D3', null),
+      rider('3', 'D2', '59:59.99'),
+    ]
+    expect(topOfGroup(list, 'Любители', GROUPS, {})).toEqual([
+      { rider: list[0], place: 1 },
+      { rider: list[1], place: null },
+      { rider: list[2], place: null },
+    ])
+  })
+
+  it('райдер в тройке — срез не трогаем', () => {
+    const list = [
+      rider('1', 'D2', '00:44.15'),
+      rider('2', 'D3', '00:42.31'),
+      rider('3', 'D3', '00:43.80'),
+      rider('4', 'D2', '00:45.00'),
+    ]
+    expect(topOfGroup(list, 'Любители', GROUPS, {}, '1').map(r => r.rider.id))
+      .toEqual(['2', '3', '1'])
+  })
+
+  // Иначе блок в кадре превращается в список чужих фамилий, пока человек едет.
+  it('райдер вне тройки занимает последнюю строку со своим настоящим местом', () => {
+    const list = [
+      rider('1', 'D2', '00:42.00'),
+      rider('2', 'D3', '00:43.00'),
+      rider('3', 'D3', '00:44.00'),
+      rider('4', 'D2', '00:45.00'),
+      rider('5', 'D2', '00:46.00'),
+    ]
+    expect(topOfGroup(list, 'Любители', GROUPS, {}, '5')).toEqual([
+      { rider: list[0], place: 1 },
+      { rider: list[1], place: 2 },
+      { rider: list[4], place: 5 },
+    ])
+  })
+
+  it('райдер из чужой группы ничего не подменяет', () => {
+    const list = [
+      rider('1', 'D2', '00:44.15'),
+      rider('2', 'D3', '00:42.31'),
+      rider('3', 'D3', '00:43.80'),
+      rider('4', 'B', '00:30.00'),
+    ]
+    expect(topOfGroup(list, 'Любители', GROUPS, {}, '4').map(r => r.rider.id))
+      .toEqual(['2', '3', '1'])
+  })
+
+  it('без группы возвращает пустой список', () => {
+    expect(topOfGroup([rider('1', 'D2', '00:44.15')], null, GROUPS, {})).toEqual([])
+  })
+
+  it('ручная пометка меняет состав колонки вслед за зачётом', () => {
+    const list = [rider('1', 'D2', '00:44.15'), rider('2', 'D3', '00:42.31')]
+    expect(topOfGroup(list, 'Круизер', GROUPS, { 1: ['Круизер'] }).map(r => r.rider.id))
+      .toEqual(['1'])
+    expect(topOfGroup(list, 'Любители', GROUPS, { 1: ['Круизер'] }).map(r => r.rider.id))
+      .toEqual(['2'])
   })
 })

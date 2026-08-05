@@ -117,6 +117,43 @@ export function podiumOf(participants = [], subject, groups = [], riderGroups = 
     .slice(0, 3)
 }
 
+// Одна группа участника — для мест, где колонка всего одна: топ рядом
+// с карточкой заезда. Из двух зачётов берётся тот, что выше в конфиге,
+// а не первая проставленная пометка: порядок галочек — история кликов
+// оператора, и два одинаковых райдера показали бы в кадре разные группы.
+// Порядок в event.config.js виден глазами и правится там же.
+export function primaryGroup(rider, groups = [], riderGroups = {}) {
+  const names = groupsOf(rider, groups, riderGroups)
+  if (!names.length) return null
+
+  return groups.find(g => names.includes(g.name))?.name ?? null
+}
+
+// Строки топа группы для кадра: тройка сильнейших плюс место каждого.
+//
+// Места считаем сами — у сайта их нет. placeInClass сюда не годится:
+// он посчитан внутри класса, и в «Любителях» стояло бы два первых места,
+// от D2 и от D3. Считаем по тем же правилам, что и подиум церемонии
+// (ridersOfGroup), поэтому кадр и награждение не разойдутся.
+export function topOfGroup(participants = [], name, groups = [], riderGroups = {}, riderId = null, limit = 3) {
+  // Безрезультатные стоят в конце списка, поэтому нумерация ехавших идёт
+  // подряд с первого. Не ехавшему места не выдаём вовсе: «3» под фамилией
+  // человека, который ещё не стартовал, зритель прочитает как результат.
+  const rows = ridersOfGroup(participants, name, groups, riderGroups)
+    .map((rider, index) => ({ rider, place: bestSeconds(rider) !== null ? index + 1 : null }))
+
+  const top = rows.slice(0, limit)
+  if (!riderId || top.some(row => row.rider.id === riderId)) return top
+
+  // Тот, кто едет прямо сейчас, из своего же топа выпадать не должен:
+  // три строки чужих фамилий — не контекст. Место у него настоящее,
+  // четырнадцатое так четырнадцатое.
+  const own = rows.find(row => row.rider.id === riderId)
+  if (!own || top.length < limit) return top
+
+  return [...top.slice(0, limit - 1), own]
+}
+
 // Место, которое останется осмысленным в другой группе. Церемонию ведут
 // с третьего места, но в Круизере и SB призёров может быть один-два, и
 // перенос выбранного третьего места на такую группу оставил бы в кадре

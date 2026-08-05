@@ -1,24 +1,30 @@
 <script setup>
 import { computed } from 'vue'
-import { topWithRider, bestOf, bestSeconds, formatDelta, fractionDigits, NO_RESULT_LABELS } from '../shared/format.js'
+import { bestOf, bestSeconds, formatDelta, fractionDigits, NO_RESULT_LABELS } from '../shared/format.js'
+import { topOfGroup } from '../shared/awardGroups.js'
 
 const props = defineProps({
   participants: { type: Array, required: true },
-  sportClass: { type: String, required: true },
+  group: { type: String, required: true },
+  awardGroups: { type: Array, default: () => [] },
+  riderGroups: { type: Object, default: () => ({}) },
   highlightId: { type: String, default: null },
   limit: { type: Number, default: 3 },
 })
 
 const rows = computed(() => {
-  const top = topWithRider(props.participants, props.sportClass, props.highlightId, props.limit)
+  const top = topOfGroup(
+    props.participants, props.group, props.awardGroups, props.riderGroups,
+    props.highlightId, props.limit,
+  )
 
-  // Лидером для отсчёта служит лучшее время в показанной тройке, а не
-  // первая строка: место с сайта может стоять у того, кто ещё не поехал,
-  // и тогда все отставания вышли бы отрицательными.
-  const times = top.map(bestSeconds).filter(s => s !== null)
+  // Лидер отсчёта — лучшее время среди показанных, а не первая строка:
+  // в начале дня наверху может стоять тот, кто ещё не ехал, и отставания
+  // от пустого времени не считаются.
+  const times = top.map(({ rider }) => bestSeconds(rider)).filter(s => s !== null)
   const leader = times.length ? Math.min(...times) : null
 
-  return top.map((rider) => {
+  return top.map(({ rider, place }) => {
     const own = bestSeconds(rider)
     const label = bestOf(rider)
     const delta = own !== null && leader !== null ? own - leader : null
@@ -27,6 +33,7 @@ const rows = computed(() => {
     // до десятитысячных двух знаков не хватит, чтобы различить соседей.
     return {
       rider,
+      place,
       best: label ?? '—',
       dnf: NO_RESULT_LABELS.includes(label),
       delta: formatDelta(delta, fractionDigits(label)),
@@ -37,14 +44,14 @@ const rows = computed(() => {
 
 <template>
   <div v-if="rows.length" class="tower">
-    <h3>Класс {{ sportClass }}</h3>
+    <h3>{{ group }}</h3>
     <div
-      v-for="({ rider, best, delta, dnf }) in rows"
+      v-for="({ rider, place, best, delta, dnf }) in rows"
       :key="rider.id"
       class="line"
       :class="{ current: rider.id === highlightId }"
     >
-      <span class="pl tabular">{{ rider.placeInClass ?? '—' }}</span>
+      <span class="pl tabular">{{ place ?? '—' }}</span>
       <span class="nm">{{ rider.fio }}</span>
       <span class="bt tabular" :class="{ dnf }">{{ best }}</span>
       <span class="dl tabular">{{ delta }}</span>

@@ -121,7 +121,7 @@ defineExpose({ focusNumber: () => numberField.value?.focus() })
       </label>
 
       <label class="switch">
-        <span class="name">Топ-3 класса</span>
+        <span class="name">Топ-3 группы</span>
         <input
           type="checkbox"
           :checked="showClassTop"
