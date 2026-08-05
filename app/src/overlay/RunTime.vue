@@ -55,7 +55,14 @@ const delta = computed(() => {
   )
   if (seconds === null) return null
 
-  return { seconds, text: formatDelta(seconds, fractionDigits(props.timer.time)) }
+  // Точность разницы — по слабейшему из двух измерений. Таймер отдаёт
+  // десятитысячные, протокол печатает сотые: показать «−1.9700» значило бы
+  // заявить точность, которой в исходных данных нет.
+  const digits = Math.min(
+    fractionDigits(props.timer.time), fractionDigits(previous.value?.time),
+  )
+
+  return { seconds, text: formatDelta(seconds, digits) }
 })
 
 // Что стоит в блоке: подпись, крупные цифры и притушенный хвост сетки.
@@ -130,12 +137,15 @@ const face = computed(() => {
 .time::before {
   content: "";
   position: absolute;
-  inset: -30px -40px;
+  inset: -54px -86px;
+  /* Затухание доведено до самого края: оборви его раньше, и дымка
+     прочитается овальным пятном — то есть той же плашкой, только мутной. */
   background: radial-gradient(
-    60% 62% at 50% 50%,
-    rgba(0, 0, 0, 0.52) 0%,
-    rgba(0, 0, 0, 0.32) 45%,
-    transparent 78%
+    closest-side at 50% 50%,
+    rgba(0, 0, 0, 0.5) 0%,
+    rgba(0, 0, 0, 0.38) 34%,
+    rgba(0, 0, 0, 0.16) 64%,
+    transparent 100%
   );
   pointer-events: none;
 }

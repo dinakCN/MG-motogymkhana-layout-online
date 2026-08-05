@@ -40,7 +40,8 @@ stageUrlTemplate: 'https://gymkhana-cup.ru/competitions/stage?id={id}',
 port: 4300,
 pollInterval: 7000,      // как часто опрашивать сайт, мс
 highlightTimeout: 6000,  // сколько держится хайлайт, мс
-showClassTop5: true,     // топ-5 класса рядом с карточкой заезда
+showRunTime: true,       // зона времени в заезде: таймер и время первой попытки
+showClassTop: true,      // топ-3 класса рядом с карточкой заезда
 awardGroups: [...],      // какие классы объединяются в награждение
 ```
 
@@ -138,7 +139,7 @@ awardGroups: [...],      // какие классы объединяются в 
 | | |
 |---|---|
 | ![Таблица](docs/screenshots/1-results.png) | ![Заезд](docs/screenshots/2-run.png) |
-| Общая таблица результатов | Заезд: карточка и топ-5 класса |
+| Общая таблица результатов | Заезд: карточка, зона времени и топ-3 класса |
 | ![Награждение](docs/screenshots/5-award-podium.png) | ![Заставка](docs/screenshots/7-idle.png) |
 | Награждение | Заставка |
 
