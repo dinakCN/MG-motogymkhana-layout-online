@@ -95,7 +95,7 @@ function onMenuToggle(event) {
              по которой щёлкнули. -->
         <button
           class="chips"
-          :class="{ manual: isManual(rider) }"
+          :class="{ manual: isManual(rider), conflict: strictGroups && groupsFor(rider).length > 1 }"
           :style="{ anchorName: `--grp-${rider.id}` }"
           :popovertarget="`grp-${rider.id}`"
         >
@@ -189,6 +189,10 @@ function onMenuToggle(event) {
 }
 
 .chips.manual { color: var(--accent); background: var(--accent-soft); }
+
+/* Жёсткое разделение включили, когда человек уже в двух группах: состояние
+   не чинится само, но и потеряться участник не должен. */
+.chips.conflict { box-shadow: inset 0 0 0 1px #ffd60a; }
 .chip { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chip.none { color: var(--ink-faint); }
 .caret { margin-left: auto; opacity: 0.6; }

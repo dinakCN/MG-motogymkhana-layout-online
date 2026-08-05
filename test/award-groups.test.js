@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  UNGROUPED, groupsOf, groupsWithCounts, ridersOfGroup, podiumOf, clampPlace,
+  UNGROUPED, groupsOf, groupsWithCounts, ridersOfGroup, podiumOf, clampPlace, conflictsOf,
 } from '../app/src/shared/awardGroups.js'
 
 const GROUPS = [
@@ -184,6 +184,23 @@ describe('podiumOf', () => {
 
     expect(podiumOf(list, 'Круизер', GROUPS, marks).map(r => r.id)).toEqual(['1'])
     expect(podiumOf(list, 'Любители', GROUPS, marks).map(r => r.id)).toEqual(['2', '1'])
+  })
+})
+
+describe('conflictsOf', () => {
+  it('находит участников больше чем в одной группе', () => {
+    const list = [rider('1', 'D2'), rider('2', 'N')]
+    expect(conflictsOf(list, GROUPS, { 1: ['Любители', 'Круизер'] }).map(r => r.id)).toEqual(['1'])
+  })
+
+  it('пуст, когда каждый ровно в одной группе', () => {
+    const list = [rider('1', 'D2'), rider('2', 'N')]
+    expect(conflictsOf(list, GROUPS, { 2: ['SB'] })).toEqual([])
+  })
+
+  it('не считает конфликтом группу из прошлого этапа — её всё равно нет', () => {
+    const list = [rider('1', 'D2')]
+    expect(conflictsOf(list, GROUPS, { 1: ['Круизер', 'Ветераны'] })).toEqual([])
   })
 })
 

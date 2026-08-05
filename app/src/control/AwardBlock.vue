@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { groupsWithCounts, podiumOf, clampPlace } from '../shared/awardGroups.js'
+import { groupsWithCounts, podiumOf, clampPlace, conflictsOf } from '../shared/awardGroups.js'
 import { bestOf } from '../shared/format.js'
 
 const props = defineProps({
@@ -8,12 +8,21 @@ const props = defineProps({
   award: { type: Object, required: true },
   awardGroups: { type: Array, default: () => [] },
   riderGroups: { type: Object, default: () => ({}) },
+  strictGroups: { type: Boolean, default: false },
 })
 const emit = defineEmits(['change'])
 
 const groups = computed(
   () => groupsWithCounts(props.participants, props.awardGroups, props.riderGroups),
 )
+
+// Показываем только в жёстком режиме: в мягком несколько групп — норма,
+// ради которой всё и делалось. В жёстком это след переключения режима
+// посреди этапа, и человек, которого ждут в зале, не должен исчезнуть
+// из группы молча — лог во время эфира никто не читает.
+const conflicts = computed(() => (props.strictGroups
+  ? conflictsOf(props.participants, props.awardGroups, props.riderGroups)
+  : []))
 
 // Призёры показаны только для чтения: оператор должен видеть, кто поедет
 // в кадр, до того как переключит сцену.
@@ -52,6 +61,10 @@ function pickGroup(name) {
         {{ g.name }} · {{ g.count }}
       </option>
     </select>
+
+    <p v-if="conflicts.length" class="warn">
+      жёсткое разделение: у {{ conflicts.length }} из списка по несколько групп
+    </p>
 
     <ol v-if="award.subject" class="podium">
       <li v-for="(rider, index) in podium" :key="rider.id" class="slot">
@@ -108,6 +121,8 @@ function pickGroup(name) {
 .pl { color: var(--accent); font-weight: 640; }
 .fio { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bt { text-align: right; color: var(--ink-dim); }
+
+.warn { margin: 8px 0 0; font-size: 12px; color: #ffd60a; }
 
 .row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
 .label { font-size: 13px; color: var(--ink-faint); }

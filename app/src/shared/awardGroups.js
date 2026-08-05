@@ -77,6 +77,16 @@ export function ridersOfGroup(participants = [], name, groups = [], riderGroups 
     .map(x => x.rider)
 }
 
+// Участники, у которых известных групп больше одной. В мягком режиме это
+// норма, ради которой всё и делалось; в жёстком — след переключения режима
+// посреди этапа. Состояние не чинится само: тихо вынуть человека из группы
+// перед его церемонией хуже, чем показать противоречие и дать разобраться.
+export function conflictsOf(participants = [], groups = [], riderGroups = {}) {
+  return participants.filter(
+    rider => groupsOf(rider, groups, riderGroups).filter(n => isKnown(n, groups)).length > 1,
+  )
+}
+
 // Призёры группы. Короче трёх — законно: в группе может быть меньше людей,
 // а сошедшие и не стартовавшие в награждении не участвуют.
 export function podiumOf(participants = [], subject, groups = [], riderGroups = {}) {

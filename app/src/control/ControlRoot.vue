@@ -112,6 +112,7 @@ function hideHighlight() {
           :award="state.award"
           :award-groups="state.awardGroups ?? []"
           :rider-groups="state.riderGroups ?? {}"
+          :strict-groups="state.strictGroups ?? false"
           @change="send('setAward', $event)"
         />
         <OverrideBlock :rider="selected" @override="send('manualOverride', $event)" />
