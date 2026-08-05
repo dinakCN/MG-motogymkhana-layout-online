@@ -20,8 +20,15 @@ export function groupsOf(rider, groups = [], riderGroups = {}) {
   // зачёта», и подставлять вместо него класс нельзя. Круизер и SB из
   // протокола не выводятся вообще — их определяет мотоцикл, а не индекс
   // класса, поэтому набранное руками всегда важнее вычисленного.
+  //
+  // Неизвестные имена отсеиваются здесь, а не у каждого потребителя:
+  // пометка могла остаться от прошлого этапа, где группы назывались иначе.
+  // Пока фильтрация жила ниже, бейдж в строке показывал такую группу как
+  // настоящую, счётчики рядом её не видели, а меню отправляло серверу
+  // команду с несуществующим именем — та отвергалась целиком, и оператор
+  // молча терял управление группами этого участника.
   const manual = riderGroups[rider?.id]
-  if (Array.isArray(manual)) return manual
+  if (Array.isArray(manual)) return manual.filter(name => isKnown(name, groups))
 
   const sportClass = rider?.sportClass
   if (!sportClass) return []
@@ -38,17 +45,36 @@ function isKnown(name, groups) {
   return Boolean(name) && groups.some(g => g.name === name)
 }
 
+// Каким станет список групп участника после клика по строке меню.
+// Живёт здесь, а не в компоненте: это единственный производитель payload
+// для setRiderGroup, и проверять его нужно тестами, а не глазами в эфире.
+export function nextGroups(current = [], name, strict = false) {
+  const has = current.includes(name)
+
+  if (!strict) return has ? current.filter(n => n !== name) : [...current, name]
+
+  // Строгий режим ведёт себя как радиокнопки, но с одной оговоркой.
+  // Клик по отмеченной группе снимает её — иначе «вне зачёта» было бы
+  // недостижимо. А вот когда групп несколько (режим включили после того,
+  // как пометки проставили), тот же клик означает противоположное:
+  // оператор разрешает конфликт и оставляет ту группу, по которой щёлкнул.
+  // Отдавать здесь пустой список значило бы выбрасывать человека из всех
+  // зачётов ровно тем движением, которым его хотели в зачёте оставить.
+  if (has) return current.length > 1 ? [name] : []
+  return [name]
+}
+
 export function groupsWithCounts(participants = [], groups = [], riderGroups = {}) {
   const counts = new Map(groups.map(g => [g.name, 0]))
   let ungrouped = 0
 
   for (const rider of participants) {
-    const known = groupsOf(rider, groups, riderGroups).filter(n => isKnown(n, groups))
+    const names = groupsOf(rider, groups, riderGroups)
 
     // В мягком режиме сумма счётчиков больше числа участников: тот, кто
     // едет и в «Любителях», и в «Круизере», посчитан дважды — и это ровно
     // то, ради чего режим включают.
-    if (known.length) for (const name of known) counts.set(name, counts.get(name) + 1)
+    if (names.length) for (const name of names) counts.set(name, counts.get(name) + 1)
     else ungrouped += 1
   }
 
@@ -63,9 +89,7 @@ export function ridersOfGroup(participants = [], name, groups = [], riderGroups 
   return participants
     .filter((rider) => {
       const names = groupsOf(rider, groups, riderGroups)
-      return name === UNGROUPED
-        ? !names.some(n => isKnown(n, groups))
-        : names.includes(name)
+      return name === UNGROUPED ? !names.length : names.includes(name)
     })
     // Похоже на topOfClass из format.js, но объединять нельзя: тот сначала
     // сортирует по placeInClass, а здесь это запрещено — сайт считает места
@@ -78,13 +102,11 @@ export function ridersOfGroup(participants = [], name, groups = [], riderGroups 
 }
 
 // Участники, у которых известных групп больше одной. В мягком режиме это
-// норма, ради которой всё и делалось; в жёстком — след переключения режима
+// норма, ради которой всё и делалось; в строгом — след переключения режима
 // посреди этапа. Состояние не чинится само: тихо вынуть человека из группы
 // перед его церемонией хуже, чем показать противоречие и дать разобраться.
 export function conflictsOf(participants = [], groups = [], riderGroups = {}) {
-  return participants.filter(
-    rider => groupsOf(rider, groups, riderGroups).filter(n => isKnown(n, groups)).length > 1,
-  )
+  return participants.filter(rider => groupsOf(rider, groups, riderGroups).length > 1)
 }
 
 // Призёры группы. Короче трёх — законно: в группе может быть меньше людей,

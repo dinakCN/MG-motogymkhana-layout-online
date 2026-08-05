@@ -589,6 +589,15 @@ describe('состояние награждения по группам', () => 
     expect(s.riderGroups).toEqual({ 1: ['SB'], 2: ['Любители', 'Круизер'], 3: [] })
     rmSync(path, { force: true })
   })
+
+  it('дубли в файле схлопываются — иначе участник посчитан в группе дважды', () => {
+    const path = 'test/tmp-dup-groups-state.json'
+    writeFileSync(path, JSON.stringify({ riderGroups: { 1: ['Любители', 'Любители'] } }), 'utf-8')
+
+    const s = loadState(path)
+    expect(s.riderGroups['1']).toEqual(['Любители'])
+    rmSync(path, { force: true })
+  })
 })
 
 describe('тумблеры сцены заезда', () => {

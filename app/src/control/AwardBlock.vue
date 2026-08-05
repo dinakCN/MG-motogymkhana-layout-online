@@ -16,8 +16,8 @@ const groups = computed(
   () => groupsWithCounts(props.participants, props.awardGroups, props.riderGroups),
 )
 
-// Показываем только в жёстком режиме: в мягком несколько групп — норма,
-// ради которой всё и делалось. В жёстком это след переключения режима
+// Показываем только в строгом режиме: в мягком несколько групп — норма,
+// ради которой всё и делалось. В строгом это след переключения режима
 // посреди этапа, и человек, которого ждут в зале, не должен исчезнуть
 // из группы молча — лог во время эфира никто не читает.
 const conflicts = computed(() => (props.strictGroups
@@ -63,7 +63,7 @@ function pickGroup(name) {
     </select>
 
     <p v-if="conflicts.length" class="warn">
-      жёсткое разделение: у {{ conflicts.length }} из списка по несколько групп
+      строгое разделение: у {{ conflicts.length }} из списка по несколько групп
     </p>
 
     <ol v-if="award.subject" class="podium">

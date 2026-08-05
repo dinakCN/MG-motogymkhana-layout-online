@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { bestOf } from '../shared/format.js'
-import { groupsOf, ridersOfGroup } from '../shared/awardGroups.js'
+import { groupsOf, ridersOfGroup, nextGroups } from '../shared/awardGroups.js'
 
 const props = defineProps({
   participants: { type: Array, required: true },
@@ -44,20 +44,14 @@ const byClass = rider => groupsOf(rider, props.awardGroups, {})
 
 const isManual = rider => Array.isArray(props.riderGroups[rider.id])
 
+// Что означает клик — решает nextGroups в shared: это единственный
+// производитель payload для setRiderGroup, и проверять его нужно тестами,
+// а не глазами в эфире.
 function toggle(rider, name) {
-  const current = groupsFor(rider)
-  const has = current.includes(name)
-
-  // Жёсткое разделение переносит участника, мягкое добавляет зачёт: одна
-  // галочка не должна отнимать группу по классу, иначе человек тихо
-  // выпадет из церемонии, к которой уже готов. Повторный клик снимает
-  // отметку в обоих режимах — без этого «вне зачёта» было бы недостижимо
-  // в жёстком, хотя сервер такую пометку принимает.
-  const next = props.strictGroups
-    ? (has ? [] : [name])
-    : (has ? current.filter(n => n !== name) : [...current, name])
-
-  emit('group', { participantId: rider.id, groups: next })
+  emit('group', {
+    participantId: rider.id,
+    groups: nextGroups(groupsFor(rider), name, props.strictGroups),
+  })
 }
 
 // Не то же самое, что снять все отметки: сброс возвращает участника

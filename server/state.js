@@ -88,8 +88,11 @@ const overrideKey = (participantId, attempt, field) => `${participantId}:${attem
 function normalizeRiderGroups(riderGroups) {
   const out = {}
   for (const [id, value] of Object.entries(riderGroups ?? {})) {
+    // Дубли схлопываем: команда пульта их не пропускает, но в файл они
+    // могли попасть из состояния прошлой версии, а группа с дублем
+    // посчитала бы одного человека дважды.
     if (typeof value === 'string') out[id] = [value]
-    else if (Array.isArray(value)) out[id] = value.filter(name => typeof name === 'string')
+    else if (Array.isArray(value)) out[id] = [...new Set(value.filter(name => typeof name === 'string'))]
   }
   return out
 }
