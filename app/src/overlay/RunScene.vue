@@ -38,7 +38,7 @@ const sceneHeight = computed(() => (props.state.currentRun.caption ? '190px' : '
       :sport-class="rider.sportClass"
       :highlight-id="rider.id"
     />
-    <LogoBug :src="state.logoUrl" />
+    <LogoBug :src="state.logoMarkUrl" />
   </div>
 </template>
 

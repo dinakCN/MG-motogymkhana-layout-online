@@ -21,6 +21,65 @@ describe('event.config.js', () => {
   })
 })
 
+describe('логотип', () => {
+  it('путь из файла доезжает до конфига сервера', () => {
+    const c = loadConfig({}, { ...eventConfig, logo: '/assets/mgk-nsk.png' })
+    expect(c.logoUrl).toBe('/assets/mgk-nsk.png')
+  })
+
+  it('полная ссылка принимается — логотип этапа может лежать не у нас', () => {
+    const url = 'https://example.org/logo.png'
+    expect(loadConfig({}, { ...eventConfig, logo: url }).logoUrl).toBe(url)
+  })
+
+  it('LOGO перекрывает файл — репетиция с чужой эмблемой без правки конфига', () => {
+    const c = loadConfig({ LOGO: '/assets/other.png' }, eventConfig)
+    expect(c.logoUrl).toBe('/assets/other.png')
+  })
+
+  // Пустой src у <img> тянет саму страницу оверлея: в углу кадра появилась бы
+  // битая картинка вместо эмблемы.
+  it('без логотипа и с пустым значением — путь по умолчанию, а не пустой src', () => {
+    expect(loadConfig({}, { ...eventConfig, logo: undefined }).logoUrl).toBe('/assets/logo.png')
+    expect(loadConfig({}, { ...eventConfig, logo: '' }).logoUrl).toBe('/assets/logo.png')
+  })
+
+  it('в боевом конфиге логотип задан', () => {
+    expect(eventConfig.logo).toBeTruthy()
+  })
+})
+
+describe('знак для угла кадра', () => {
+  it('путь из файла доезжает до конфига сервера', () => {
+    const c = loadConfig({}, { ...eventConfig, logoMark: '/assets/mark.png' })
+    expect(c.logoMarkUrl).toBe('/assets/mark.png')
+  })
+
+  it('LOGO_MARK перекрывает файл', () => {
+    expect(loadConfig({ LOGO_MARK: '/assets/other.png' }, eventConfig).logoMarkUrl)
+      .toBe('/assets/other.png')
+  })
+
+  // Знак необязателен: без него в углу встанет обычный логотип — мелко,
+  // но узнаваемо. Пустой угол или битая картинка были бы хуже.
+  it('без знака подставляется обычный логотип, а не пустой src', () => {
+    const c = loadConfig({}, { ...eventConfig, logo: '/assets/l.png', logoMark: undefined })
+    expect(c.logoMarkUrl).toBe('/assets/l.png')
+    expect(loadConfig({}, { ...eventConfig, logo: '/assets/l.png', logoMark: '' }).logoMarkUrl)
+      .toBe('/assets/l.png')
+  })
+
+  it('LOGO перетягивает и знак, если своего у знака нет', () => {
+    const c = loadConfig({ LOGO: '/assets/env.png' }, { ...eventConfig, logoMark: undefined })
+    expect(c.logoMarkUrl).toBe('/assets/env.png')
+  })
+
+  it('в боевом конфиге знак задан и отличается от полного логотипа', () => {
+    expect(eventConfig.logoMark).toBeTruthy()
+    expect(eventConfig.logoMark).not.toBe(eventConfig.logo)
+  })
+})
+
 describe('resolveStage — номер или полная ссылка', () => {
   it('из номера собирает адрес по шаблону', () => {
     expect(resolveStage('677', TEMPLATE)).toEqual({

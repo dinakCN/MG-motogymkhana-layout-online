@@ -30,6 +30,11 @@ export function resolveStage(value, template) {
 export function loadConfig(env = process.env, event = eventConfig) {
   const template = event.stageUrlTemplate || 'https://gymkhana-cup.ru/competitions/stage?id={id}'
 
+  // Знак для угла необязателен: без него в кадре встанет обычный логотип —
+  // мелко, но узнаваемо. Пустой src был бы хуже: <img> с ним тянет саму
+  // страницу оверлея и рисует в углу битую картинку.
+  const logoUrl = env.LOGO || event.logo || '/assets/logo.png'
+
   // STAGE_ID оставлен рядом со STAGE: он записан в готовых шпаргалках
   // и в истории команд, и в день эфира менять его некогда.
   const live = resolveStage(event.stage, template)
@@ -38,6 +43,8 @@ export function loadConfig(env = process.env, event = eventConfig) {
   return {
     port: Number(env.PORT) || Number(event.port) || 4300,
     eventTitle: event.eventTitle,
+    logoUrl,
+    logoMarkUrl: env.LOGO_MARK || event.logoMark || logoUrl,
     stageId: current.stageId,
     stageUrl: current.stageUrl,
     liveStageId: live.stageId,

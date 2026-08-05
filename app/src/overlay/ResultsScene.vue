@@ -79,7 +79,7 @@ const rows = computed(() => groups.value.map(group => ({
   <div class="results">
     <header>
       <h1>{{ state.eventTitle }}</h1>
-      <LogoBug :src="state.logoUrl" />
+      <LogoBug :src="state.logoMarkUrl" />
     </header>
 
     <div ref="body" class="body" :class="{ masked: needsScroll }">

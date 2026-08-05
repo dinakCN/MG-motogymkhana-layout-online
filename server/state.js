@@ -23,6 +23,7 @@ export function createDefaultState() {
   return {
     eventTitle: 'Чемпионат Новосибирской области по мотоджимхане 2026',
     logoUrl: '/assets/logo.png',
+    logoMarkUrl: '/assets/logo-mark.png',
     stageId: null,
     // Перекрываются настройками сервера при старте (server/index.js).
     // Здесь — чтобы состояние было полным даже без него, например в тестах.

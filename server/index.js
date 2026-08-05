@@ -25,6 +25,8 @@ state.stageId = config.stageId
 // Настройки, которые нужны в кадре и в пульте, едут вместе с состоянием:
 // иначе они существовали бы только в event.config.js и ни на что не влияли.
 state.eventTitle = config.eventTitle
+state.logoUrl = config.logoUrl
+state.logoMarkUrl = config.logoMarkUrl
 state.liveStageId = config.liveStageId
 state.highlightTimeout = config.highlightTimeout
 state.showRunTime = config.showRunTime
