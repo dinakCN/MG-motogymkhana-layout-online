@@ -4,6 +4,7 @@ import {
   parseTimeToSeconds, formatSeconds, formatDelta, isDnf, attemptTotal,
   bestSeconds, bestOf, attemptLabel, groupByClass, topOfClass, secondsSince,
   fractionDigits, DNF_LABEL, NOT_COUNTED_LABEL,
+  topWithRider, attemptResultLabel, deltaToAttempt, formatClock,
 } from '../app/src/shared/format.js'
 import { parseStage } from '../server/parser.js'
 
@@ -382,5 +383,140 @@ describe('topOfClass', () => {
       rider({ id: 'результат', bestTime: '01:40.00' }),
     ]
     expect(topOfClass(list, 'C3', 5)[0].id).toBe('результат')
+  })
+})
+
+describe('topWithRider', () => {
+  it('райдер в тройке — срез не трогаем', () => {
+    const list = [
+      rider({ id: 'a', placeInClass: 1 }),
+      rider({ id: 'b', placeInClass: 2 }),
+      rider({ id: 'c', placeInClass: 3 }),
+      rider({ id: 'd', placeInClass: 4 }),
+    ]
+    expect(topWithRider(list, 'C3', 'b', 3).map(p => p.id)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('райдер вне тройки занимает третью строку', () => {
+    const list = [
+      rider({ id: 'a', placeInClass: 1 }),
+      rider({ id: 'b', placeInClass: 2 }),
+      rider({ id: 'c', placeInClass: 3 }),
+      rider({ id: 'седьмой', placeInClass: 7 }),
+    ]
+    expect(topWithRider(list, 'C3', 'седьмой', 3).map(p => p.id)).toEqual(['a', 'b', 'седьмой'])
+  })
+
+  it('без райдера — обычный срез', () => {
+    const list = [
+      rider({ id: 'a', placeInClass: 1 }),
+      rider({ id: 'b', placeInClass: 2 }),
+      rider({ id: 'c', placeInClass: 3 }),
+      rider({ id: 'd', placeInClass: 4 }),
+    ]
+    expect(topWithRider(list, 'C3', null, 3).map(p => p.id)).toEqual(['a', 'b', 'c'])
+  })
+
+  // Райдер из другого класса в чужой топ попасть не может ни при каких условиях.
+  it('райдер не из этого класса ничего не подменяет', () => {
+    const list = [
+      rider({ id: 'a', sportClass: 'C3', placeInClass: 1 }),
+      rider({ id: 'b', sportClass: 'C3', placeInClass: 2 }),
+      rider({ id: 'c', sportClass: 'C3', placeInClass: 3 }),
+      rider({ id: 'чужой', sportClass: 'N', placeInClass: 1 }),
+    ]
+    expect(topWithRider(list, 'C3', 'чужой', 3).map(p => p.id)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('в классе меньше трёх — возвращаем сколько есть', () => {
+    const list = [
+      rider({ id: 'a', placeInClass: 1 }),
+      rider({ id: 'b', placeInClass: 2 }),
+    ]
+    expect(topWithRider(list, 'C3', 'b', 3).map(p => p.id)).toEqual(['a', 'b'])
+  })
+
+  it('единственный в классе он же и в списке', () => {
+    const list = [rider({ id: 'один', placeInClass: 1 })]
+    expect(topWithRider(list, 'C3', 'один', 3).map(p => p.id)).toEqual(['один'])
+  })
+})
+
+describe('attemptResultLabel', () => {
+  it('засчитанная попытка показывается результатом со штрафом', () => {
+    expect(attemptResultLabel({ n: 1, time: '01:21.61', penalty: 1 })).toBe('01:22.61')
+  })
+
+  it('без штрафа — само время', () => {
+    expect(attemptResultLabel({ n: 1, time: '01:41.23', penalty: null })).toBe('01:41.23')
+  })
+
+  it('сход — словом, а не числом 59:59.99', () => {
+    expect(attemptResultLabel({ n: 1, time: '59:59.99' })).toBe('сход')
+  })
+
+  it('зачёркнутая попытка — «незачёт», даже с обычным временем', () => {
+    expect(attemptResultLabel({ n: 1, time: '03:47.90', scratched: true })).toBe('незачёт')
+  })
+
+  it('попытки не было — null', () => {
+    expect(attemptResultLabel(null)).toBeNull()
+    expect(attemptResultLabel({ n: 1, time: null })).toBeNull()
+  })
+
+  // Точность не додумываем: сколько знаков намерил хронометраж, столько и показываем.
+  it('десятитысячные сохраняются', () => {
+    expect(attemptResultLabel({ n: 1, time: '01:23.7215' })).toBe('01:23.7215')
+  })
+})
+
+describe('deltaToAttempt', () => {
+  const withFirst = attempt => ({ id: 'r', attempts: [attempt] })
+
+  it('улучшил — разница отрицательная', () => {
+    const p = withFirst({ n: 1, time: '01:41.23' })
+    expect(deltaToAttempt(99.09, p, 1)).toBeCloseTo(-2.14, 2)
+  })
+
+  it('ухудшил — разница положительная', () => {
+    const p = withFirst({ n: 1, time: '01:41.23' })
+    expect(deltaToAttempt(103.23, p, 1)).toBeCloseTo(2, 2)
+  })
+
+  it('штраф первой попытки входит в разницу', () => {
+    const p = withFirst({ n: 1, time: '01:41.23', penalty: 1 })
+    expect(deltaToAttempt(102.23, p, 1)).toBeCloseTo(0, 2)
+  })
+
+  it('первая попытка не засчитана — сравнивать не с чем', () => {
+    expect(deltaToAttempt(99, withFirst({ n: 1, time: '59:59.99' }), 1)).toBeNull()
+    expect(deltaToAttempt(99, withFirst({ n: 1, time: '01:41.23', scratched: true }), 1)).toBeNull()
+  })
+
+  it('попытки с таким номером нет', () => {
+    expect(deltaToAttempt(99, { id: 'r', attempts: [] }, 1)).toBeNull()
+  })
+
+  it('своего времени нет — разницы нет', () => {
+    expect(deltaToAttempt(null, withFirst({ n: 1, time: '01:41.23' }), 1)).toBeNull()
+  })
+})
+
+describe('formatClock', () => {
+  it('минуты и секунды без долей', () => {
+    expect(formatClock(83)).toBe('01:23')
+  })
+
+  it('доли отбрасываются, а не округляются вверх', () => {
+    expect(formatClock(83.99)).toBe('01:23')
+  })
+
+  it('ноль и отрицательное дают 00:00', () => {
+    expect(formatClock(0)).toBe('00:00')
+    expect(formatClock(-5)).toBe('00:00')
+  })
+
+  it('больше десяти минут', () => {
+    expect(formatClock(754)).toBe('12:34')
   })
 })

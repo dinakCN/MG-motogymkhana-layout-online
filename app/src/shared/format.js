@@ -193,6 +193,56 @@ export function topOfClass(participants, sportClass, limit = 5) {
     .map(x => x.rider)
 }
 
+// Топ класса, в котором последнюю строку занимает текущий райдер, если сам
+// он в срез не попал. Пять строк держали контекст сами собой — в трёх
+// спортсмен выпадает, и блок превращается в список чужих фамилий.
+export function topWithRider(participants, sportClass, riderId, limit = 3) {
+  const top = topOfClass(participants, sportClass, limit)
+  if (!riderId || top.some(p => p.id === riderId)) return top
+
+  const rider = participants.find(
+    p => p.id === riderId && (p.sportClass || 'Без класса') === sportClass,
+  )
+  if (!rider || top.length < limit) return top
+
+  return [...top.slice(0, limit - 1), rider]
+}
+
+// Результат попытки для показа рядом с живым временем. В отличие от
+// attemptLabel зачёркнутая попытка называется словом: в зоне времени она
+// стоит эталоном для сравнения, а сравнивать с незасчитанным нечего, и
+// показанное там время читалось бы как действующий результат.
+export function attemptResultLabel(attempt) {
+  if (!attempt?.time) return null
+  if (isDnf(attempt.time)) return DNF_LABEL
+  if (isScratched(attempt)) return NOT_COUNTED_LABEL
+
+  return formatSeconds(attemptTotal(attempt), fractionDigits(attempt.time))
+}
+
+// Разница показанного времени с результатом попытки n. Живой отсчёт про
+// штраф не знает, а результат попытки — знает: сравниваем с тем, что пойдёт
+// в протокол, иначе «улучшил» в кадре разошлось бы с итоговой таблицей.
+export function deltaToAttempt(seconds, participant, n) {
+  if (seconds === null || seconds === undefined || Number.isNaN(seconds)) return null
+
+  const attempt = (participant?.attempts || []).find(a => a.n === n)
+  const total = attemptTotal(attempt)
+  if (total === null) return null
+
+  return seconds - total
+}
+
+// Часы живого отсчёта: минуты и секунды, без долей. Доли отбрасываем,
+// а не округляем — иначе на 01:22.6 в кадре стояло бы 01:23, и переход
+// к точному финишному времени выглядел бы как шаг назад.
+export function formatClock(seconds) {
+  const total = Math.max(0, Math.floor(seconds || 0))
+  const mm = Math.floor(total / 60)
+  const ss = total - mm * 60
+  return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
+}
+
 // Возраст данных считается по часам той машины, где открыт пульт, а метка
 // приходит с сервера. Часы могут разойтись, и «обновлено −4 с назад»
 // в строке состояния читалось бы как поломка. Ниже нуля не опускаемся.
