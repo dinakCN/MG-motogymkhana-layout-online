@@ -169,9 +169,56 @@ export function applyParticipants(state, participants) {
   if (!Array.isArray(participants)) return false
   if (participants.length === 0 && state.participants.length > 0) return false
 
+  rehomeRiderGroups(state, participants)
   state.participants = participants
   state.lastSuccessfulPoll = Date.now()
   applyOverrides(state)
+  return true
+}
+
+// Идентификатор участника не вечен: у безномерных он собран из ФИО, и как
+// только организатор привяжет профиль, id станет числом. Такие правки
+// делают по ходу дня — а группу вручную набирают как раз тем, у кого
+// профиля нет. Без переноса пометка молча осиротела бы за час до
+// церемонии, и человек уехал бы не в свой зачёт.
+//
+// Переносим только при однозначном совпадении ФИО: два тёзки в протоколе —
+// повод не трогать ничего, ошибиться здесь дороже, чем оставить как есть.
+function rehomeRiderGroups(state, next) {
+  const byId = new Map(state.participants.map(p => [p.id, p]))
+  const arrived = new Set(next.map(p => p.id))
+
+  const fioCount = new Map()
+  for (const p of next) fioCount.set(p.fio, (fioCount.get(p.fio) ?? 0) + 1)
+
+  for (const [id, groups] of Object.entries(state.riderGroups ?? {})) {
+    if (arrived.has(id)) continue
+
+    const fio = byId.get(id)?.fio
+    if (!fio || fioCount.get(fio) !== 1) continue
+
+    const heir = next.find(p => p.fio === fio)
+    // Своя пометка у наследника важнее: совпадение ФИО не повод
+    // перекладывать на него чужую.
+    if (!heir || state.riderGroups[heir.id]) continue
+
+    state.riderGroups[heir.id] = groups
+    delete state.riderGroups[id]
+    console.log(`[state] пометка групп перенесена: ${id} → ${heir.id} (${fio})`)
+  }
+}
+
+// Группа награждения, выбранная до правки конфига, могла из него исчезнуть:
+// её переименовали или убрали. Пульт показал бы пустой селектор, а сцена
+// награждения — заголовок несуществующей группы поверх пустого подиума.
+// Возвращает true, если пришлось сбросить.
+export function syncAwardSubject(state) {
+  const subject = state.award?.subject
+  if (!subject || subject === UNGROUPED) return false
+  if ((state.awardGroups ?? []).some(g => g.name === subject)) return false
+
+  console.warn(`[state] группа награждения «${subject}» исчезла из конфига — сброшено`)
+  state.award.subject = null
   return true
 }
 

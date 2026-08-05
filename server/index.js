@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path'
 import express from 'express'
 import { WebSocketServer } from 'ws'
 import { config } from './config.js'
-import { loadState, saveState, applyCommand } from './state.js'
+import { loadState, saveState, applyCommand, syncAwardSubject } from './state.js'
 import { startPolling } from './poller.js'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -33,6 +33,11 @@ state.showRunTime = config.showRunTime
 state.showClassTop = config.showClassTop
 state.awardGroups = config.awardGroups
 state.strictGroups = config.strictGroups
+
+// Состав групп мог поменяться, пока сервер лежал: выбранной группы больше
+// нет — снимаем выбор, чтобы в кадр не ушёл её заголовок поверх пустого
+// подиума, а оператор не смотрел на пустой селектор.
+syncAwardSubject(state)
 
 const app = express()
 

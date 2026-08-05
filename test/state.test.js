@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { rmSync, writeFileSync } from 'node:fs'
 import { bestOf } from '../app/src/shared/format.js'
 import { UNGROUPED, podiumOf } from '../app/src/shared/awardGroups.js'
-import { createDefaultState, applyParticipants, applyCommand, saveState, loadState, normalizeOverride, UNGROUPED as SERVER_UNGROUPED, PODIUM_PLACES } from '../server/state.js'
+import { createDefaultState, applyParticipants, applyCommand, saveState, loadState, normalizeOverride, syncAwardSubject, UNGROUPED as SERVER_UNGROUPED, PODIUM_PLACES } from '../server/state.js'
 
 const rider = (id, fio) => ({
   id, athleteId: id, sportClass: 'C3', classColor: 'green', number: 28,
@@ -546,6 +546,85 @@ describe('setRiderGroup', () => {
     const s = withGroups()
     expect(setGroups(s, '1', ['SB'])).toBe(true)
     expect(setGroups(s, '2', [])).toBe(true)
+  })
+})
+
+describe('перенос пометок при смене id участника', () => {
+  const named = (id, fio) => ({ ...rider(id, fio), id })
+
+  it('пометка переезжает на новый id, когда организатор привязал профиль', () => {
+    const s = withGroups()
+    applyParticipants(s, [named('anon-p67ilg', 'Полухин Никита')])
+    applyCommand(s, { type: 'setRiderGroup', payload: { participantId: 'anon-p67ilg', groups: ['SB'] } })
+
+    // тот же человек, но у него появился профиль на сайте — id стал числом
+    applyParticipants(s, [named('9999', 'Полухин Никита')])
+
+    expect(s.riderGroups['9999']).toEqual(['SB'])
+    expect(s.riderGroups['anon-p67ilg']).toBeUndefined()
+  })
+
+  it('не переносит к тёзке — двух одинаковых ФИО достаточно, чтобы ошибиться', () => {
+    const s = withGroups()
+    applyParticipants(s, [named('anon-1', 'Иванов Иван')])
+    applyCommand(s, { type: 'setRiderGroup', payload: { participantId: 'anon-1', groups: ['SB'] } })
+
+    applyParticipants(s, [named('11', 'Иванов Иван'), named('22', 'Иванов Иван')])
+
+    expect(s.riderGroups['11']).toBeUndefined()
+    expect(s.riderGroups['22']).toBeUndefined()
+  })
+
+  it('не затирает пометку, которая уже стоит на новом id', () => {
+    const s = withGroups()
+    applyParticipants(s, [named('anon-1', 'Полухин Никита'), named('7', 'Другой Гонщик')])
+    applyCommand(s, { type: 'setRiderGroup', payload: { participantId: 'anon-1', groups: ['SB'] } })
+    applyCommand(s, { type: 'setRiderGroup', payload: { participantId: '7', groups: ['Любители'] } })
+
+    // сайт переименовал участника «7» в «Полухин Никита» — совпадение ФИО
+    // не повод перекладывать чужую пометку
+    applyParticipants(s, [named('7', 'Полухин Никита')])
+
+    expect(s.riderGroups['7']).toEqual(['Любители'])
+  })
+
+  it('участник просто снялся — пометка остаётся, картинку она не портит', () => {
+    const s = withGroups()
+    applyParticipants(s, [named('1', 'Болдов Иван')])
+    applyCommand(s, { type: 'setRiderGroup', payload: { participantId: '1', groups: ['SB'] } })
+
+    applyParticipants(s, [named('2', 'Петров Илья')])
+
+    expect(s.riderGroups['1']).toEqual(['SB'])
+  })
+})
+
+describe('syncAwardSubject', () => {
+  it('сбрасывает группу, которой больше нет в конфиге — иначе её заголовок уйдёт в эфир', () => {
+    const s = createDefaultState()
+    s.awardGroups = [{ name: 'Любители', classes: ['D2'] }]
+    s.award.subject = 'Круизер'
+
+    expect(syncAwardSubject(s)).toBe(true)
+    expect(s.award.subject).toBe(null)
+  })
+
+  it('существующую группу не трогает', () => {
+    const s = createDefaultState()
+    s.awardGroups = [{ name: 'Любители', classes: ['D2'] }]
+    s.award.subject = 'Любители'
+
+    expect(syncAwardSubject(s)).toBe(false)
+    expect(s.award.subject).toBe('Любители')
+  })
+
+  it('«Вне групп» оставляет — это вычисляемый пункт, а не группа из конфига', () => {
+    const s = createDefaultState()
+    s.awardGroups = [{ name: 'Любители', classes: ['D2'] }]
+    s.award.subject = UNGROUPED
+
+    expect(syncAwardSubject(s)).toBe(false)
+    expect(s.award.subject).toBe(UNGROUPED)
   })
 })
 

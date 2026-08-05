@@ -24,6 +24,13 @@ const conflicts = computed(() => (props.strictGroups
   ? conflictsOf(props.participants, props.awardGroups, props.riderGroups)
   : []))
 
+// Выбранной группы может не оказаться среди пунктов: «Вне групп» исчезает,
+// как только аномалий не осталось, — а выбор в состоянии остаётся. Без этой
+// строки оператор смотрел бы на пустой селектор, не понимая, почему подиум
+// не строится, а в кадре висел бы заголовок группы, которой нет.
+const missing = computed(() => Boolean(props.award.subject)
+  && !groups.value.some(g => g.name === props.award.subject))
+
 // Призёры показаны только для чтения: оператор должен видеть, кто поедет
 // в кадр, до того как переключит сцену.
 const podium = computed(
@@ -61,6 +68,10 @@ function pickGroup(name) {
         {{ g.name }} · {{ g.count }}
       </option>
     </select>
+
+    <p v-if="missing" class="warn">
+      группы «{{ award.subject }}» больше нет — выберите другую
+    </p>
 
     <p v-if="conflicts.length" class="warn">
       строгое разделение: у {{ conflicts.length }} из списка по несколько групп
