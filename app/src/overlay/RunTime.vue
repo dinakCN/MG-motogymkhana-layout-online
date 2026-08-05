@@ -62,32 +62,46 @@ const delta = computed(() => {
     fractionDigits(props.timer.time), fractionDigits(previous.value?.time),
   )
 
-  return { seconds, text: formatDelta(seconds, digits) }
+  const text = formatDelta(seconds, digits)
+
+  // Разницу меньше показанной точности formatDelta отдаёт прочерком, и в
+  // кадре стояло бы «— к первой» — читается как поломка. Тогда возвращаем
+  // обычную строку первой попытки: одинаковые цифры зритель увидит сам.
+  if (text === '—') return null
+
+  return { seconds, text }
 })
 
-// Что стоит в блоке: подпись, крупные цифры и притушенный хвост сетки.
-const face = computed(() => {
-  if (live.value) {
-    if (props.timer.phase === 'finished' && props.timer.time) {
-      return { label: 'Финиш', value: props.timer.time, tail: '', gold: true }
-    }
-    if (props.timer.phase === 'running') {
-      return { label: 'Заезд', value: formatClock(elapsed.value), tail: '.0000', gold: false }
-    }
-    return { label: 'Заезд', value: '—:—', tail: '.0000', gold: false, dim: true }
-  }
-
-  // Моста нет. Показываем то единственное про время, что знаем наверняка.
-  if (previousLabel.value) {
-    return {
+// Что показывать, когда живых цифр нет: время первой попытки — единственное
+// про время, что мы знаем наверняка. Отсюда и режим без моста, и запасной
+// вид для случаев, когда мост отвечает, но цифр не даёт.
+const fallback = computed(() => (previousLabel.value
+  ? {
       label: `${attemptNumber.value - 1}-я попытка`,
       value: previousLabel.value,
       tail: '',
       gold: false,
+      isFallback: true,
     }
+  : null))
+
+// Что стоит в блоке: подпись, крупные цифры и притушенный хвост сетки.
+const face = computed(() => {
+  if (!live.value) return fallback.value
+
+  if (props.timer.phase === 'finished') {
+    // Финиш без времени: мост знает, что заезд кончился, а цифр не отдал.
+    // Показывать после этого «Заезд —:—» значило бы соврать о состоянии.
+    return props.timer.time
+      ? { label: 'Финиш', value: props.timer.time, tail: '', gold: true }
+      : fallback.value
   }
 
-  return null
+  if (props.timer.phase === 'running') {
+    return { label: 'Заезд', value: formatClock(elapsed.value), tail: '.0000', gold: false }
+  }
+
+  return { label: 'Заезд', value: '—:—', tail: '.0000', gold: false, dim: true }
 })
 </script>
 
@@ -101,7 +115,9 @@ const face = computed(() => {
     <div v-if="delta" class="prev" :class="{ better: delta.seconds < 0 }">
       {{ delta.text }} <i>к первой</i>
     </div>
-    <div v-else-if="live && previousLabel" class="prev">
+    <!-- Когда крупными цифрами уже стоит время первой попытки, повторять
+         его строкой ниже незачем. -->
+    <div v-else-if="live && previousLabel && !face.isFallback" class="prev">
       {{ attemptNumber - 1 }}-я попытка <b>{{ previousLabel }}</b>
     </div>
   </div>
