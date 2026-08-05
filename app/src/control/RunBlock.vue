@@ -6,8 +6,10 @@ const props = defineProps({
   currentRun: { type: Object, required: true },
   activeScene: { type: String, required: true },
   preselected: { type: Object, default: null },
+  showRunTime: { type: Boolean, default: true },
+  showClassTop: { type: Boolean, default: true },
 })
-const emit = defineEmits(['publish'])
+const emit = defineEmits(['publish', 'option'])
 
 const numberInput = ref('')
 const attempt = ref(1)
@@ -92,6 +94,29 @@ defineExpose({ focusNumber: () => numberField.value?.focus() })
     <button class="btn primary wide" :disabled="!preview" @click="publish">
       {{ onAir ? 'Обновить в эфире' : 'В эфир' }}
     </button>
+
+    <div class="options">
+      <label class="switch">
+        <span class="name">Время в кадре</span>
+        <span class="key">T</span>
+        <input
+          type="checkbox"
+          :checked="showRunTime"
+          @change="emit('option', { option: 'showRunTime', value: $event.target.checked })"
+        />
+        <span class="track"></span>
+      </label>
+
+      <label class="switch">
+        <span class="name">Топ-3 класса</span>
+        <input
+          type="checkbox"
+          :checked="showClassTop"
+          @change="emit('option', { option: 'showClassTop', value: $event.target.checked })"
+        />
+        <span class="track"></span>
+      </label>
+    </div>
   </div>
 </template>
 
@@ -142,4 +167,9 @@ defineExpose({ focusNumber: () => numberField.value?.focus() })
 }
 
 .wide { width: 100%; margin-top: 10px; }
+
+/* Настройки сцены отделены от команд: кнопка «В эфир» меняет кадр,
+   тумблеры — то, из чего он собран. Смешивать их в один столбец значит
+   приглашать промахнуться в эфире. */
+.options { margin-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.07); }
 </style>

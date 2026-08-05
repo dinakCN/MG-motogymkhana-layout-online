@@ -43,6 +43,13 @@ function onKey(event) {
   if (inField) return
 
   if (HOTKEYS[event.key]) send('setActiveScene', HOTKEYS[event.key])
+
+  // Клавишу ловим по коду, а не по символу: в русской раскладке та же
+  // клавиша даёт «е», и проверка по event.key молча перестала бы работать
+  // ровно тогда, когда оператор печатал подпись кириллицей.
+  if (event.code === 'KeyT') {
+    send('setSceneOption', { option: 'showRunTime', value: !(state.value?.showRunTime ?? true) })
+  }
 }
 
 onMounted(() => window.addEventListener('keydown', onKey))
@@ -83,7 +90,10 @@ function hideHighlight() {
           :current-run="state.currentRun"
           :active-scene="state.activeScene"
           :preselected="selected"
+          :show-run-time="state.showRunTime ?? true"
+          :show-class-top="state.showClassTop ?? true"
           @publish="publishRun"
+          @option="send('setSceneOption', $event)"
         />
         <HighlightBlock
           :preselected="selected"
