@@ -100,6 +100,10 @@ export function loadConfig(env = process.env, event = eventConfig) {
     highlightTimeout: Number(env.HIGHLIGHT_TIMEOUT) || Number(event.highlightTimeout) || 6000,
     showRunTime: env.SHOW_RUN_TIME ? env.SHOW_RUN_TIME !== '0' : event.showRunTime !== false,
     showClassTop: env.SHOW_CLASS_TOP ? env.SHOW_CLASS_TOP !== '0' : event.showClassTop !== false,
+    // Умолчание обратное соседям выше: таблица группируется по классам, как
+    // и раньше. Места в классе считает сайт, и такая таблица сверяется
+    // с протоколом строка в строку; по группам их считаем мы.
+    resultsByGroup: env.RESULTS_BY_GROUP ? env.RESULTS_BY_GROUP !== '0' : event.resultsByGroup === true,
     // Переопределения переменной окружения у групп нет: подменять состав
     // награждения из командной строки незачем, а лишний способ ошибиться
     // перед эфиром стоит дороже гибкости.

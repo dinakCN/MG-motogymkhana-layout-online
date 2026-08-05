@@ -36,6 +36,9 @@ export function createDefaultState() {
     // сообщением, что и все остальные — разойтись они не могут.
     showRunTime: true,
     showClassTop: true,
+    // Разрез итоговой таблицы: по классам (как считает сайт) или по группам
+    // награждения (как вручают медали). Тот же тумблер, та же дорожка.
+    resultsByGroup: false,
     activeScene: 'results',
     round: 'round1',
     lastSuccessfulPoll: 0,
@@ -270,7 +273,7 @@ export function applyCommand(state, message) {
       return true
 
     case 'setSceneOption': {
-      const OPTIONS = ['showRunTime', 'showClassTop']
+      const OPTIONS = ['showRunTime', 'showClassTop', 'resultsByGroup']
       if (!OPTIONS.includes(payload?.option)) return false
 
       state[payload.option] = Boolean(payload.value)

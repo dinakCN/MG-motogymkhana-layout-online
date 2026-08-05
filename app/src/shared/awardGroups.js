@@ -129,18 +129,38 @@ export function primaryGroup(rider, groups = [], riderGroups = {}) {
   return groups.find(g => names.includes(g.name))?.name ?? null
 }
 
-// Строки топа группы для кадра: тройка сильнейших плюс место каждого.
+// Состав группы целиком, с местом у каждого.
 //
 // Места считаем сами — у сайта их нет. placeInClass сюда не годится:
 // он посчитан внутри класса, и в «Любителях» стояло бы два первых места,
 // от D2 и от D3. Считаем по тем же правилам, что и подиум церемонии
-// (ridersOfGroup), поэтому кадр и награждение не разойдутся.
-export function topOfGroup(participants = [], name, groups = [], riderGroups = {}, riderId = null, limit = 3) {
+// (ridersOfGroup), поэтому итоговая таблица, топ в кадре заезда и
+// награждение разойтись не могут: у них один источник мест.
+export function placedRidersOfGroup(participants = [], name, groups = [], riderGroups = {}) {
   // Безрезультатные стоят в конце списка, поэтому нумерация ехавших идёт
   // подряд с первого. Не ехавшему места не выдаём вовсе: «3» под фамилией
   // человека, который ещё не стартовал, зритель прочитает как результат.
-  const rows = ridersOfGroup(participants, name, groups, riderGroups)
+  return ridersOfGroup(participants, name, groups, riderGroups)
     .map((rider, index) => ({ rider, place: bestSeconds(rider) !== null ? index + 1 : null }))
+}
+
+// Секции итоговой таблицы в разрезе групп награждения — порядок конфига,
+// он же порядок церемонии.
+//
+// Пустые группы в кадр не идут: «Круизер» объявлен на весь сезон и до первой
+// пометки оператора пуст, а пустая плашка в эфире читается как поломка
+// данных. «Вне групп» встаёт последней — это не группа, а видимое место сбора
+// тех, чей класс не нашёлся; спрятать их значило бы убрать человека из
+// итоговой таблицы совсем.
+export function sectionsOfGroups(participants = [], groups = [], riderGroups = {}) {
+  return [...groups.map(g => g.name), UNGROUPED]
+    .map(name => ({ name, riders: placedRidersOfGroup(participants, name, groups, riderGroups) }))
+    .filter(section => section.riders.length > 0)
+}
+
+// Строки топа группы для кадра заезда: тройка сильнейших плюс место каждого.
+export function topOfGroup(participants = [], name, groups = [], riderGroups = {}, riderId = null, limit = 3) {
+  const rows = placedRidersOfGroup(participants, name, groups, riderGroups)
 
   const top = rows.slice(0, limit)
   if (!riderId || top.some(row => row.rider.id === riderId)) return top

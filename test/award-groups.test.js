@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   UNGROUPED, groupsOf, groupsWithCounts, ridersOfGroup, podiumOf, clampPlace, conflictsOf,
-  nextGroups, primaryGroup, topOfGroup,
+  nextGroups, primaryGroup, topOfGroup, placedRidersOfGroup, sectionsOfGroups,
 } from '../app/src/shared/awardGroups.js'
 
 const GROUPS = [
@@ -285,6 +285,82 @@ describe('primaryGroup', () => {
     expect(primaryGroup(rider('1', 'D3'), GROUPS, { 1: [] })).toBeNull()
     expect(primaryGroup(rider('2', 'X9'), GROUPS, {})).toBeNull()
     expect(primaryGroup(null, GROUPS, {})).toBeNull()
+  })
+})
+
+describe('placedRidersOfGroup', () => {
+  it('нумерует группу насквозь через классы и никого не срезает', () => {
+    const list = [
+      rider('1', 'D2', '00:44.15'),
+      rider('2', 'D3', '00:42.31'),
+      rider('3', 'D3', '00:43.80'),
+      rider('4', 'D2', '00:45.00'),
+    ]
+    expect(placedRidersOfGroup(list, 'Любители', GROUPS, {})).toEqual([
+      { rider: list[1], place: 1 },
+      { rider: list[2], place: 2 },
+      { rider: list[0], place: 3 },
+      { rider: list[3], place: 4 },
+    ])
+  })
+
+  // Место без результата — не ноль и не «третий»: человек ещё не ехал,
+  // и цифра под его фамилией читалась бы как результат.
+  it('не ехавшим и сошедшим места не выдаёт', () => {
+    const list = [
+      rider('1', 'D2', '00:44.15'),
+      rider('2', 'D3', null),
+      rider('3', 'D2', '59:59.99'),
+    ]
+    expect(placedRidersOfGroup(list, 'Любители', GROUPS, {})).toEqual([
+      { rider: list[0], place: 1 },
+      { rider: list[1], place: null },
+      { rider: list[2], place: null },
+    ])
+  })
+
+  it('без группы возвращает пустой список', () => {
+    expect(placedRidersOfGroup([rider('1', 'D2', '00:44.15')], null, GROUPS, {})).toEqual([])
+  })
+})
+
+describe('sectionsOfGroups', () => {
+  it('секции идут в порядке конфига, состав каждой пронумерован', () => {
+    const list = [
+      rider('1', 'D2', '00:44.15'),
+      rider('2', 'D3', '00:42.31'),
+      rider('3', 'B', '00:30.00'),
+    ]
+    expect(sectionsOfGroups(list, GROUPS, {})).toEqual([
+      { name: 'Спортсмены', riders: [{ rider: list[2], place: 1 }] },
+      { name: 'Любители', riders: [{ rider: list[1], place: 1 }, { rider: list[0], place: 2 }] },
+    ])
+  })
+
+  // Пустая плашка «Круизер» в кадре читалась бы как поломка данных:
+  // зритель не знает, что группа объявлена в конфиге на весь сезон.
+  it('пустые группы в кадр не идут', () => {
+    const rows = sectionsOfGroups([rider('1', 'D2', '00:44.15')], GROUPS, {})
+    expect(rows.map(s => s.name)).toEqual(['Любители'])
+  })
+
+  it('«Вне групп» стоит последней и только когда такие участники есть', () => {
+    const ok = sectionsOfGroups([rider('1', 'D2')], GROUPS, {})
+    expect(ok.some(s => s.name === UNGROUPED)).toBe(false)
+
+    const broken = sectionsOfGroups([rider('1', 'D2'), rider('2', 'X9')], GROUPS, {})
+    expect(broken.at(-1).name).toBe(UNGROUPED)
+    expect(broken.at(-1).riders.map(r => r.rider.id)).toEqual(['2'])
+  })
+
+  // Ровно то, ради чего включают мягкий режим: класс говорит о мастерстве,
+  // Круизер — о мотоцикле, и человек стоит в двух зачётах.
+  it('в мягком режиме двойник стоит в обеих своих секциях', () => {
+    const list = [rider('1', 'D2', '00:44.15'), rider('2', 'D3', '00:42.31')]
+    const rows = sectionsOfGroups(list, GROUPS, { 1: ['Любители', 'Круизер'] })
+
+    expect(rows.find(s => s.name === 'Любители').riders.map(r => r.rider.id)).toEqual(['2', '1'])
+    expect(rows.find(s => s.name === 'Круизер').riders.map(r => r.rider.id)).toEqual(['1'])
   })
 })
 

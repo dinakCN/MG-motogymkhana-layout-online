@@ -6,6 +6,7 @@ import SceneTabs from './SceneTabs.vue'
 import ParticipantList from './ParticipantList.vue'
 import RunBlock from './RunBlock.vue'
 import RoundBlock from './RoundBlock.vue'
+import ResultsBlock from './ResultsBlock.vue'
 import HighlightBlock from './HighlightBlock.vue'
 import AwardBlock from './AwardBlock.vue'
 import OverrideBlock from './OverrideBlock.vue'
@@ -56,6 +57,13 @@ function onKey(event) {
   // ровно тогда, когда оператор печатал подпись кириллицей.
   if (event.code === 'KeyT') {
     send('setSceneOption', { option: 'showRunTime', value: !(state.value?.showRunTime ?? true) })
+  }
+
+  // Разрез итоговой таблицы: по классам или по группам награждения.
+  // Клавиша нужна ближе к концу дня, когда таблицу держат в кадре между
+  // заездами, а разговор в эфире уже про медали.
+  if (event.code === 'KeyG') {
+    send('setSceneOption', { option: 'resultsByGroup', value: !(state.value?.resultsByGroup ?? false) })
   }
 
   // Сход помечают в те же секунды, когда спортсмен встал, — тянуться мышью
@@ -116,6 +124,13 @@ function hideHighlight() {
           @hide="hideHighlight"
         />
         <RoundBlock :round="state.round" @change="send('setRound', $event)" />
+        <ResultsBlock
+          :by-group="state.resultsByGroup ?? false"
+          :participants="participants"
+          :award-groups="state.awardGroups ?? []"
+          :rider-groups="state.riderGroups ?? {}"
+          @option="send('setSceneOption', $event)"
+        />
         <AwardBlock
           :participants="participants"
           :award="state.award"

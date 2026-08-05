@@ -220,6 +220,31 @@ describe('группы награждения', () => {
   })
 })
 
+describe('режим итоговой таблицы', () => {
+  // Умолчание — нынешнее поведение: класс считает места сам сайт, и
+  // таблица по классам сверяется с протоколом строка в строку.
+  it('без ключа таблица группируется по классам', () => {
+    expect(loadConfig({}, { ...eventConfig, resultsByGroup: undefined }).resultsByGroup).toBe(false)
+  })
+
+  it('resultsByGroup читается из файла', () => {
+    expect(loadConfig({}, { ...eventConfig, resultsByGroup: true }).resultsByGroup).toBe(true)
+  })
+
+  it('включается только явным true — строка «true» не считается', () => {
+    expect(loadConfig({}, { ...eventConfig, resultsByGroup: 'true' }).resultsByGroup).toBe(false)
+    expect(loadConfig({}, { ...eventConfig, resultsByGroup: 1 }).resultsByGroup).toBe(false)
+  })
+
+  it('переменная окружения перекрывает файл — репетиция без правки', () => {
+    const on = loadConfig({ RESULTS_BY_GROUP: '1' }, { ...eventConfig, resultsByGroup: false })
+    expect(on.resultsByGroup).toBe(true)
+
+    const off = loadConfig({ RESULTS_BY_GROUP: '0' }, { ...eventConfig, resultsByGroup: true })
+    expect(off.resultsByGroup).toBe(false)
+  })
+})
+
 describe('resolveTimerUrl', () => {
   it('из адреса прибора собирает путь к показаниям', () => {
     expect(resolveTimerUrl('192.168.1.97')).toBe('http://192.168.1.97/laptime')

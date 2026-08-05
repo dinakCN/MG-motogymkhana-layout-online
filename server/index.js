@@ -32,6 +32,7 @@ state.liveStageId = config.liveStageId
 state.highlightTimeout = config.highlightTimeout
 state.showRunTime = config.showRunTime
 state.showClassTop = config.showClassTop
+state.resultsByGroup = config.resultsByGroup
 state.awardGroups = config.awardGroups
 state.strictGroups = config.strictGroups
 

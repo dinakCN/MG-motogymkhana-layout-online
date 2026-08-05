@@ -719,6 +719,21 @@ describe('тумблеры сцены заезда', () => {
   })
 })
 
+describe('режим итоговой таблицы', () => {
+  it('по умолчанию таблица группируется по классам', () => {
+    expect(createDefaultState().resultsByGroup).toBe(false)
+  })
+
+  it('пульт переключает таблицу на группы награждения', () => {
+    const state = createDefaultState()
+    expect(applyCommand(state, {
+      type: 'setSceneOption',
+      payload: { option: 'resultsByGroup', value: true },
+    })).toBe(true)
+    expect(state.resultsByGroup).toBe(true)
+  })
+})
+
 describe('показания таймера', () => {
   it('по умолчанию их нет', () => {
     expect(createDefaultState().timer).toBeNull()

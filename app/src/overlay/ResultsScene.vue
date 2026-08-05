@@ -1,11 +1,41 @@
 <script setup>
 import { computed, ref, watch, nextTick } from 'vue'
 import { groupByClass, bestOf, attemptLabel, isDnf, isScratched, NO_RESULT_LABELS } from '../shared/format.js'
+import { sectionsOfGroups } from '../shared/awardGroups.js'
 import LogoBug from './LogoBug.vue'
 
 const props = defineProps({ state: { type: Object, required: true } })
 
-const groups = computed(() => groupByClass(props.state.participants))
+// Разрезов у таблицы два, и это не оформление, а разный ответ на вопрос
+// «кто выиграл». По классам места считает сайт, и таблица сходится с
+// протоколом строка в строку. По группам награждения места считаем мы:
+// в «Любителях» D2 и D3 едут в одном зачёте, и первое место там одно —
+// именно по этой таблице через час вручат медали.
+const byGroup = computed(() => Boolean(props.state.resultsByGroup))
+
+// Оба разреза приведены к одной форме, поэтому разметка ниже одна. Отличий
+// ровно два: откуда взялись секции и показан ли класс в строке — под
+// заголовком класса он подразумевается, а внутри группы уже нет.
+const sections = computed(() => (byGroup.value
+  ? sectionsOfGroups(
+    props.state.participants, props.state.awardGroups ?? [], props.state.riderGroups ?? {},
+  ).map(({ name, riders }) => ({ title: name, pill: 'award', riders }))
+
+  : groupByClass(props.state.participants).map(({ sportClass, classColor, riders }) => ({
+    title: sportClass,
+    pill: classTint(classColor),
+    // Место в классе считает сайт — спорить с официальным протоколом
+    // в прямом эфире нельзя.
+    riders: riders.map(rider => ({ rider, place: rider.placeInClass })),
+  }))
+))
+
+// Цвет класса приходит с сайта и у безклассовых пуст. Без подстановки
+// пилюля осталась бы прозрачной, а текст на ней — тёмным по тёмному,
+// то есть невидимым.
+function classTint(classColor) {
+  return `color-${classColor || 'unknown'}`
+}
 
 const body = ref(null)
 const grid = ref(null)
@@ -37,21 +67,26 @@ async function measure() {
   duration.value = Math.max(Math.round(shift.value / SCROLL_SPEED), 20)
 }
 
-// Пересчитываем и когда меняется число групп: организаторы могут проставить
-// класс участнику, который шёл без класса, — участников столько же, а групп
-// на одну больше, и высота контента вырастает.
+// Пересчитываем и когда меняется число секций: организаторы могут проставить
+// класс участнику, который шёл без класса, — участников столько же, а секций
+// на одну больше, и высота контента вырастает. Смена разреза меняет её тем
+// более: семь классов и три группы — разная высота при тех же людях.
 watch(
-  () => [props.state.participants.length, groups.value.length].join(':'),
+  () => [props.state.participants.length, sections.value.length, byGroup.value].join(':'),
   measure,
   { immediate: true },
 )
 
 // Строки готовятся один раз на приход данных, а не пересчитываются
 // в шаблоне на каждое обращение к ячейке.
-const rows = computed(() => groups.value.map(group => ({
-  ...group,
-  riders: group.riders.map(rider => ({
+const rows = computed(() => sections.value.map(section => ({
+  ...section,
+  riders: section.riders.map(({ rider, place }) => ({
     rider,
+    place,
+    // Пустой класс бывает у тех, кто попал во «Вне групп»: бейджа у них
+    // нет вовсе — пустая цветная пилюля выглядела бы как потерянные данные.
+    tag: rider.sportClass ? classTint(rider.classColor) : null,
     attempts: [1, 2].map((n) => {
       const attempt = rider.attempts?.find(a => a.n === n)
       if (!attempt?.time) return { time: '—', penalty: null, dnf: false, scratched: false }
@@ -86,14 +121,14 @@ const rows = computed(() => groups.value.map(group => ({
       <div
         ref="grid"
         class="grid"
-        :class="{ scrolling: needsScroll }"
+        :class="{ scrolling: needsScroll, 'by-group': byGroup }"
         :style="{ '--shift': `${shift}px`, '--duration': `${duration}s` }"
       >
-        <section v-for="group in rows" :key="group.sportClass" class="group surface">
-          <!-- Подписи колонок живут в шапке класса: так они выровнены над
+        <section v-for="section in rows" :key="section.title" class="group surface">
+          <!-- Подписи колонок живут в шапке секции: так они выровнены над
                своими колонками и не съедают отдельную строку высоты. -->
           <h2>
-            <span class="cls" :class="`color-${group.classColor}`">{{ group.sportClass }}</span>
+            <span class="cls" :class="section.pill">{{ section.title }}</span>
             <span class="cap">Поп. 1</span>
             <span class="cap">Поп. 2</span>
             <span class="cap">Лучшее</span>
@@ -101,15 +136,18 @@ const rows = computed(() => groups.value.map(group => ({
 
           <TransitionGroup name="row" tag="div">
             <div
-              v-for="row in group.riders"
+              v-for="row in section.riders"
               :key="row.rider.id"
               class="row"
-              :class="{ leader: row.rider.placeInClass === 1 }"
+              :class="{ leader: row.place === 1 }"
             >
               <span
                 class="place tabular"
-                :class="{ empty: row.rider.placeInClass == null }"
-              >{{ row.rider.placeInClass ?? '—' }}</span>
+                :class="{ empty: row.place == null }"
+              >{{ row.place ?? '—' }}</span>
+              <!-- Внутри группы едут разные классы, и без бейджа непонятно,
+                   кого именно обошёл лидер. -->
+              <span v-if="byGroup" class="tag" :class="row.tag">{{ row.rider.sportClass }}</span>
               <span class="num tabular">{{ row.rider.number ?? '—' }}</span>
               <span class="name">{{ row.rider.fio }}</span>
               <span
@@ -184,10 +222,17 @@ h1 {
   );
 }
 
+/* Сетка колонок объявлена один раз и здесь: шапка секции и строки обязаны
+   стоять по одним и тем же вертикалям, а в разрезе по группам к ним
+   добавляется бейдж класса. Два места с одинаковым списком колонок
+   разъехались бы при первой же правке ширины. */
 .grid {
+  --cols: 38px 46px 1fr 108px 108px 112px;
   column-count: 2;
   column-gap: 48px;
 }
+
+.grid.by-group { --cols: 38px 42px 46px 1fr 108px 108px 112px; }
 
 /* Ход прокрутки — ровно недостающая высота, посчитанная в measure().
    alternate возвращает список наверх тем же плавным движением, без рывка
@@ -212,23 +257,49 @@ h1 {
 
 h2 {
   display: grid;
-  grid-template-columns: 38px 46px 1fr 108px 108px 112px;
+  grid-template-columns: var(--cols);
   gap: 10px;
   align-items: center;
   margin-bottom: 8px;
 }
 
 /* Буква класса — цветная пилюля, а не подчёркнутый заголовок: цвет на
-   сайте не различает D1–D4, поэтому буква обязана быть заметной. */
+   сайте не различает D1–D4, поэтому буква обязана быть заметной. Бейдж
+   в строке живёт по тем же правилам, поэтому общее у них — здесь. */
+.cls, .tag {
+  border-radius: var(--r-pill);
+  font-weight: 700;
+  color: #0a0d12;
+}
+
+/* Отсчёт справа: три последние колонки — времена, и заголовок занимает
+   всё, что до них, в обоих разрезах. */
 .cls {
-  grid-column: 1 / 4;
+  grid-column: 1 / -4;
   justify-self: start;
   font-size: 17px;
-  font-weight: 700;
   letter-spacing: 0.01em;
   padding: 4px 14px;
-  border-radius: var(--r-pill);
-  color: #0a0d12;
+}
+
+/* Имя группы своего цвета не имеет: цвет на сайте раздан классам, а группа
+   их объединяет. Нейтральная пилюля вместо выдуманного цвета — иначе
+   «Любители» в кадре спорили бы с бейджами D2 и D3 внутри себя. */
+.cls.award {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--ink);
+  text-transform: uppercase;
+  font-size: 15px;
+  letter-spacing: 0.07em;
+}
+
+/* Бейдж класса в строке — тот же язык цвета, что и заголовок, только тише:
+   он подпись к фамилии, а не заголовок секции. */
+.tag {
+  justify-self: start;
+  font-size: 12px;
+  letter-spacing: 0.01em;
+  padding: 2px 7px;
 }
 
 .cap {
@@ -248,7 +319,7 @@ h2 {
 
 .row {
   display: grid;
-  grid-template-columns: 38px 46px 1fr 108px 108px 112px;
+  grid-template-columns: var(--cols);
   gap: 10px;
   align-items: baseline;
   padding: 8px 10px;
