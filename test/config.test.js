@@ -169,15 +169,15 @@ describe('группы награждения', () => {
   })
 
   it('strictGroups читается из файла', () => {
-    expect(loadConfig({}, { ...eventConfig, strictGroups: true }).strictGroups).toBe(true)
+    expect(loadConfig({}, { ...eventConfig, strictGroups: false }).strictGroups).toBe(false)
   })
 
-  it('без ключа режим мягкий — участник может быть сразу в нескольких группах', () => {
-    expect(loadConfig({}, { ...eventConfig, strictGroups: undefined }).strictGroups).toBe(false)
+  it('без ключа разделение строгое — один участник, одна группа', () => {
+    expect(loadConfig({}, { ...eventConfig, strictGroups: undefined }).strictGroups).toBe(true)
   })
 
-  it('нестроковое значение не включает жёсткий режим случайно', () => {
-    expect(loadConfig({}, { ...eventConfig, strictGroups: 'true' }).strictGroups).toBe(false)
-    expect(loadConfig({}, { ...eventConfig, strictGroups: 1 }).strictGroups).toBe(false)
+  it('мягкий режим включается только явным false — как у тумблеров сцены', () => {
+    expect(loadConfig({}, { ...eventConfig, strictGroups: 'false' }).strictGroups).toBe(true)
+    expect(loadConfig({}, { ...eventConfig, strictGroups: 0 }).strictGroups).toBe(true)
   })
 })

@@ -469,16 +469,24 @@ describe('setRiderGroup', () => {
     expect(s.riderGroups['1']).toEqual(['SB'])
   })
 
-  it('принимает две группы — класс и мотоцикл', () => {
+  it('принимает две группы, когда разделение отключили', () => {
     const s = withGroups()
+    s.strictGroups = false
     expect(setGroups(s, '1', ['Любители', 'SB'])).toBe(true)
     expect(s.riderGroups['1']).toEqual(['Любители', 'SB'])
   })
 
   it('схлопывает дубли и выстраивает порядок по конфигу, а не по кликам', () => {
     const s = withGroups()
+    s.strictGroups = false
     setGroups(s, '1', ['SB', 'Любители', 'SB'])
     expect(s.riderGroups['1']).toEqual(['Любители', 'SB'])
+  })
+
+  it('по умолчанию вторая группа не принимается — разделение строгое', () => {
+    const s = withGroups()
+    expect(setGroups(s, '1', ['Любители', 'SB'])).toBe(false)
+    expect(s.riderGroups).toEqual({})
   })
 
   it('пустой список принимается — это «вне зачёта», а не сброс к классу', () => {
@@ -525,9 +533,8 @@ describe('setRiderGroup', () => {
     expect(s.riderGroups['1']).toEqual(['SB'])
   })
 
-  it('жёсткое разделение отвергает вторую группу целиком, а не усекает', () => {
+  it('строгое разделение отвергает вторую группу целиком, а не усекает', () => {
     const s = withGroups()
-    s.strictGroups = true
 
     // Команда, выполненная наполовину, оставила бы человека не в тех
     // группах, и оператор об этом не узнал бы.
@@ -535,9 +542,8 @@ describe('setRiderGroup', () => {
     expect(s.riderGroups).toEqual({})
   })
 
-  it('жёсткое разделение принимает одну группу и пустой список', () => {
+  it('строгое разделение принимает одну группу и пустой список', () => {
     const s = withGroups()
-    s.strictGroups = true
     expect(setGroups(s, '1', ['SB'])).toBe(true)
     expect(setGroups(s, '2', [])).toBe(true)
   })
@@ -555,7 +561,7 @@ describe('состояние награждения по группам', () => 
     expect(s.award).toEqual({ subject: null, place: 1, showAllThree: false })
     expect(s.awardGroups).toEqual([])
     expect(s.riderGroups).toEqual({})
-    expect(s.strictGroups).toBe(false)
+    expect(s.strictGroups).toBe(true)
   })
 
   it('состояние прошлой версии с award.sportClass грузится без падения', () => {
