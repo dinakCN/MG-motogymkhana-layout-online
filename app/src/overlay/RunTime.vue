@@ -24,11 +24,12 @@ const STALE_AFTER = 2000
 const now = ref(Date.now())
 let ticker = null
 
-// Четыре тика в секунду с пересчётом от точки старта. Секунда в кадре
-// сменится с запозданием максимум на 250 мс и никогда не уползёт:
-// накопительное сложение на интервале дрейфует, и за длинный заезд
-// расхождение стало бы заметным.
-onMounted(() => { ticker = setInterval(() => { now.value = Date.now() }, 250) })
+// Двадцать тиков в секунду с пересчётом от точки старта: десятая доля
+// сменится с запозданием максимум на 50 мс — глазу это незаметно, а реже
+// нельзя, иначе доля начнёт перескакивать через значение. Пересчитываем
+// от startedAt, а не складываем накопительно: интервал дрейфует, и за
+// длинный заезд расхождение стало бы заметным.
+onMounted(() => { ticker = setInterval(() => { now.value = Date.now() }, 50) })
 onUnmounted(() => clearInterval(ticker))
 
 const live = computed(
@@ -106,7 +107,9 @@ const face = computed(() => {
   }
 
   if (props.timer.phase === 'running') {
-    return { label: 'Заезд', value: formatClock(elapsed.value), tail: '.0000', gold: false }
+    // Хвост дорисовывает сетку знакомест 00:00.0000 до конца: точка и первая
+    // доля уже в самих цифрах, серыми остаются три последних разряда.
+    return { label: 'Заезд', value: formatClock(elapsed.value, 1), tail: '000', gold: false }
   }
 
   return { label: 'Заезд', value: '—:—', tail: '.0000', gold: false, dim: true }

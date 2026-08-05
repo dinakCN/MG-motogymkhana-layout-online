@@ -233,14 +233,25 @@ export function deltaToAttempt(seconds, participant, n) {
   return seconds - total
 }
 
-// Часы живого отсчёта: минуты и секунды, без долей. Доли отбрасываем,
-// а не округляем — иначе на 01:22.6 в кадре стояло бы 01:23, и переход
-// к точному финишному времени выглядел бы как шаг назад.
-export function formatClock(seconds) {
-  const total = Math.max(0, Math.floor(seconds || 0))
+// Часы живого отсчёта. Доли отбрасываем, а не округляем — иначе на 01:22.6
+// в кадре стояло бы 01:23, и переход к точному финишному времени выглядел бы
+// как шаг назад.
+//
+// Знаков после точки столько, сколько успевает показать кадр. При 25 кадрах
+// в секунду это десятые: они меняются раз в два с половиной кадра и читаются
+// как счёт. Сотые менялись бы вчетверо чаще, чем кадр успевает смениться, —
+// последний разряд превратился бы в рябь. Точности хватает: точка старта
+// восстанавливается с ошибкой около 23 мс, то есть десятая цифра верна.
+export function formatClock(seconds, digits = 0) {
+  const d = Math.min(Math.max(digits, 0), MAX_FRACTION_DIGITS)
+  const scale = 10 ** d
+
+  const total = Math.max(0, Math.floor((seconds || 0) * scale)) / scale
   const mm = Math.floor(total / 60)
   const ss = total - mm * 60
-  return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
+
+  const body = d ? ss.toFixed(d).padStart(d + 3, '0') : String(ss).padStart(2, '0')
+  return `${String(mm).padStart(2, '0')}:${body}`
 }
 
 // Возраст данных считается по часам той машины, где открыт пульт, а метка
