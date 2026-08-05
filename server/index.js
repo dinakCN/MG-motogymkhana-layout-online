@@ -32,6 +32,7 @@ state.highlightTimeout = config.highlightTimeout
 state.showRunTime = config.showRunTime
 state.showClassTop = config.showClassTop
 state.awardGroups = config.awardGroups
+state.strictGroups = config.strictGroups
 
 const app = express()
 

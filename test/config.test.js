@@ -167,4 +167,17 @@ describe('группы награждения', () => {
       expect(Array.isArray(group.classes)).toBe(true)
     }
   })
+
+  it('strictGroups читается из файла', () => {
+    expect(loadConfig({}, { ...eventConfig, strictGroups: true }).strictGroups).toBe(true)
+  })
+
+  it('без ключа режим мягкий — участник может быть сразу в нескольких группах', () => {
+    expect(loadConfig({}, { ...eventConfig, strictGroups: undefined }).strictGroups).toBe(false)
+  })
+
+  it('нестроковое значение не включает жёсткий режим случайно', () => {
+    expect(loadConfig({}, { ...eventConfig, strictGroups: 'true' }).strictGroups).toBe(false)
+    expect(loadConfig({}, { ...eventConfig, strictGroups: 1 }).strictGroups).toBe(false)
+  })
 })

@@ -524,6 +524,23 @@ describe('setRiderGroup', () => {
     applyParticipants(s, [rider('1', 'Болдов Иван'), rider('2', 'Петров Илья')])
     expect(s.riderGroups['1']).toEqual(['SB'])
   })
+
+  it('жёсткое разделение отвергает вторую группу целиком, а не усекает', () => {
+    const s = withGroups()
+    s.strictGroups = true
+
+    // Команда, выполненная наполовину, оставила бы человека не в тех
+    // группах, и оператор об этом не узнал бы.
+    expect(setGroups(s, '1', ['Любители', 'SB'])).toBe(false)
+    expect(s.riderGroups).toEqual({})
+  })
+
+  it('жёсткое разделение принимает одну группу и пустой список', () => {
+    const s = withGroups()
+    s.strictGroups = true
+    expect(setGroups(s, '1', ['SB'])).toBe(true)
+    expect(setGroups(s, '2', [])).toBe(true)
+  })
 })
 
 describe('UNGROUPED', () => {
@@ -538,6 +555,7 @@ describe('состояние награждения по группам', () => 
     expect(s.award).toEqual({ subject: null, place: 1, showAllThree: false })
     expect(s.awardGroups).toEqual([])
     expect(s.riderGroups).toEqual({})
+    expect(s.strictGroups).toBe(false)
   })
 
   it('состояние прошлой версии с award.sportClass грузится без падения', () => {
