@@ -1,17 +1,18 @@
 <script setup>
 import { computed } from 'vue'
-import { topOfClass, bestOf, bestSeconds, formatDelta, fractionDigits, NO_RESULT_LABELS } from '../shared/format.js'
+import { topWithRider, bestOf, bestSeconds, formatDelta, fractionDigits, NO_RESULT_LABELS } from '../shared/format.js'
 
 const props = defineProps({
   participants: { type: Array, required: true },
   sportClass: { type: String, required: true },
   highlightId: { type: String, default: null },
+  limit: { type: Number, default: 3 },
 })
 
 const rows = computed(() => {
-  const top = topOfClass(props.participants, props.sportClass, 5)
+  const top = topWithRider(props.participants, props.sportClass, props.highlightId, props.limit)
 
-  // Лидером для отсчёта служит лучшее время в показанной пятёрке, а не
+  // Лидером для отсчёта служит лучшее время в показанной тройке, а не
   // первая строка: место с сайта может стоять у того, кто ещё не поехал,
   // и тогда все отставания вышли бы отрицательными.
   const times = top.map(bestSeconds).filter(s => s !== null)
@@ -54,16 +55,21 @@ const rows = computed(() => {
 <style scoped>
 .tower {
   position: absolute;
-  right: 96px;
-  bottom: 120px;
-  width: 490px;
-  padding: 20px 22px 14px;
-  border-radius: var(--r-lg);
+  left: 1418px;
+  bottom: 64px;
+  width: 430px;
+  height: var(--scene-h);
+  padding: 0 18px;
+  border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   background: var(--glass-base);
   background-image: var(--glass);
   border: 1px solid var(--glass-edge);
   box-shadow: var(--glass-shadow), var(--glass-inner);
   animation: tower-in 420ms cubic-bezier(0.32, 0.72, 0, 1);
+  transition: height 300ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 @keyframes tower-in {
@@ -72,37 +78,37 @@ const rows = computed(() => {
 }
 
 h3 {
-  font-size: 12px;
-  font-weight: 590;
-  letter-spacing: 0.06em;
+  font-size: 11px;
+  font-weight: 620;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--ink-faint);
-  margin-bottom: 12px;
+  margin-bottom: 9px;
 }
 
 .line {
   display: grid;
-  grid-template-columns: 30px 1fr 100px 78px;
-  gap: 10px;
+  grid-template-columns: 24px 1fr 94px 68px;
+  gap: 9px;
   align-items: baseline;
-  padding: 7px 10px;
-  margin: 0 -10px 2px;
-  border-radius: var(--r-sm);
-  font-size: 20px;
+  padding: 6px 8px;
+  margin: 0 -8px;
+  border-radius: 10px;
+  font-size: 18px;
   font-weight: 450;
 }
 
 /* Текущий райдер выделен так же, как лидер в общей таблице:
    один язык подсветки на всех сценах. */
 .line.current {
-  background: linear-gradient(90deg, rgba(255, 159, 10, 0.18) 0%, transparent 65%);
+  background: rgba(255, 159, 10, 0.14);
   box-shadow: inset 2px 0 0 var(--accent);
-  font-weight: 600;
+  font-weight: 620;
 }
 
-.pl { color: var(--accent); font-weight: 700; }
+.pl { color: var(--accent); font-weight: 700; font-size: 16px; }
 .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bt { text-align: right; font-weight: 600; }
-.bt.dnf { font-size: 17px; font-style: italic; font-weight: 450; color: var(--ink-faint); }
-.dl { text-align: right; color: var(--ink-faint); font-size: 18px; }
+.bt { text-align: right; font-weight: 620; }
+.bt.dnf { font-size: 15px; font-style: italic; font-weight: 450; color: var(--ink-faint); }
+.dl { text-align: right; color: var(--ink-faint); font-size: 16px; }
 </style>
