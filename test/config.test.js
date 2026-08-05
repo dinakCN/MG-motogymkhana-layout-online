@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { loadConfig, resolveStage } from '../server/config.js'
+import { loadConfig, resolveStage, resolveTimerUrl, awardGroupsProblems } from '../server/config.js'
 import eventConfig from '../event.config.js'
 import { UNGROUPED } from '../app/src/shared/awardGroups.js'
 
@@ -168,6 +168,44 @@ describe('группы награждения', () => {
     }
   })
 
+  // Опечатку в составе групп иначе не видно ничем: «Вне групп» не появится,
+  // счётчики сойдутся, а человек уедет не в свой зачёт.
+  it('находит класс, попавший сразу в две группы', () => {
+    const problems = awardGroupsProblems([
+      { name: 'Спортсмены', classes: ['D1', 'D2'] },
+      { name: 'Любители', classes: ['D2', 'D3'] },
+    ])
+    expect(problems).toHaveLength(1)
+    expect(problems[0]).toContain('D2')
+  })
+
+  it('находит две группы с одним именем — в пульте это два неразличимых пункта', () => {
+    const problems = awardGroupsProblems([
+      { name: 'Любители', classes: ['D2'] },
+      { name: 'Любители', classes: ['D3'] },
+    ])
+    expect(problems).toHaveLength(1)
+    expect(problems[0]).toContain('Любители')
+  })
+
+  it('находит имя, отнятое у «Вне групп»', () => {
+    const problems = awardGroupsProblems([{ name: UNGROUPED, classes: ['D2'] }])
+    expect(problems).toHaveLength(1)
+    expect(problems[0]).toContain(UNGROUPED)
+  })
+
+  it('на здоровом составе молчит', () => {
+    expect(awardGroupsProblems([
+      { name: 'Спортсмены', classes: ['D1'] },
+      { name: 'Любители', classes: ['D2', 'D3'] },
+      { name: 'SB', classes: [] },
+    ])).toEqual([])
+  })
+
+  it('боевой конфиг здоров — проверка перед эфиром, а не после', () => {
+    expect(awardGroupsProblems(eventConfig.awardGroups)).toEqual([])
+  })
+
   it('strictGroups читается из файла', () => {
     expect(loadConfig({}, { ...eventConfig, strictGroups: false }).strictGroups).toBe(false)
   })
@@ -179,5 +217,35 @@ describe('группы награждения', () => {
   it('мягкий режим включается только явным false — как у тумблеров сцены', () => {
     expect(loadConfig({}, { ...eventConfig, strictGroups: 'false' }).strictGroups).toBe(true)
     expect(loadConfig({}, { ...eventConfig, strictGroups: 0 }).strictGroups).toBe(true)
+  })
+})
+
+describe('resolveTimerUrl', () => {
+  it('из адреса прибора собирает путь к показаниям', () => {
+    expect(resolveTimerUrl('192.168.1.97')).toBe('http://192.168.1.97/laptime')
+  })
+
+  it('полную ссылку берёт как есть', () => {
+    expect(resolveTimerUrl('http://timer.local/lap')).toBe('http://timer.local/lap')
+  })
+
+  it('пусто означает «таймера нет»', () => {
+    expect(resolveTimerUrl('')).toBeNull()
+    expect(resolveTimerUrl(undefined)).toBeNull()
+    expect(resolveTimerUrl('  ')).toBeNull()
+  })
+
+  it('TIMER=0 гасит таймер, не трогая файл', () => {
+    expect(loadConfig({ TIMER: '0' }, { ...eventConfig, timer: '192.168.1.97' }).timerUrl).toBeNull()
+  })
+
+  it('переменная окружения перекрывает файл', () => {
+    const c = loadConfig({ TIMER: '10.0.0.5' }, { ...eventConfig, timer: '192.168.1.97' })
+    expect(c.timerUrl).toBe('http://10.0.0.5/laptime')
+  })
+
+  it('без настройки сервер поднимается без таймера', () => {
+    expect(loadConfig({}, { ...eventConfig, timer: undefined }).timerUrl).toBeNull()
+    expect(loadConfig({}, { ...eventConfig, timer: undefined }).timerPollInterval).toBe(300)
   })
 })

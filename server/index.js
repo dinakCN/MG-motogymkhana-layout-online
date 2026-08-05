@@ -4,9 +4,10 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import express from 'express'
 import { WebSocketServer } from 'ws'
-import { config } from './config.js'
+import { config, awardGroupsProblems } from './config.js'
 import { loadState, saveState, applyCommand, syncAwardSubject } from './state.js'
 import { startPolling } from './poller.js'
+import { startTimerPolling } from './timer.js'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -39,6 +40,11 @@ state.strictGroups = config.strictGroups
 // подиума, а оператор не смотрел на пустой селектор.
 syncAwardSubject(state)
 
+// Показания таймера эфемерны и с диска не поднимаются. Сервер, поднятый
+// посреди дня, видит на табло прибора прошлый результат — и обязан считать
+// это покоем, иначе чужое время подпишется под текущим спортсменом.
+state.timer = null
+
 const app = express()
 
 app.use('/assets', express.static(join(root, 'public/assets')))
@@ -53,17 +59,25 @@ for (const route of ['/overlay', '/control']) {
 const server = createServer(app)
 const wss = new WebSocketServer({ server })
 
-function broadcast() {
-  const message = JSON.stringify({ type: 'state', payload: state })
+function send(message) {
+  const text = JSON.stringify(message)
   for (const client of wss.clients) {
-    if (client.readyState === 1) client.send(message)
+    if (client.readyState === 1) client.send(text)
   }
 }
+
+const broadcast = () => send({ type: 'state', payload: state })
 
 function commit() {
   saveState(state, STATE_PATH)
   broadcast()
 }
+
+// Показания таймера идут своим сообщением, а не общим состоянием: они
+// меняются три раза в секунду, и гонять ради них весь список участников
+// значило бы жечь процессор в кадре без всякой пользы. На диск они не
+// пишутся вовсе — по своей природе живут только в текущей секунде.
+const broadcastTimer = () => send({ type: 'timer', payload: state.timer })
 
 // Страховка на случай, если пульт скрыть хайлайт не сможет: вкладку
 // закрыли, ноутбук ушёл в сон, связь оборвалась. Нижняя треть — вставка
@@ -110,6 +124,17 @@ startPolling(state, {
   onUpdate: commit,
 })
 
+// Два опросчика с разной частотой и разным поведением при сбое, намеренно
+// не смешанные: у протокола сбой не затирает последние хорошие данные,
+// а у таймера застывшие цифры вреднее пустого места.
+if (config.timerUrl) {
+  startTimerPolling(state, {
+    url: config.timerUrl,
+    interval: config.timerPollInterval,
+    onUpdate: broadcastTimer,
+  })
+}
+
 server.listen(config.port, () => {
   // Без сборки сервер поднимется, но обе страницы будут пустыми — в OBS
   // это выглядит как «оверлей сломался». Лучше сказать прямо и сразу.
@@ -119,7 +144,16 @@ server.listen(config.port, () => {
   if (config.stageId !== config.liveStageId) {
     console.warn(`[mg] ВНИМАНИЕ: этап ${config.stageId} — не боевой (боевой ${config.liveStageId})`)
   }
+  // Опечатка в составе групп не проявляет себя ни в пульте, ни в кадре:
+  // человек просто уедет не в свой зачёт. Сказать надо один раз и здесь,
+  // пока лог ещё читают.
+  for (const problem of awardGroupsProblems(config.awardGroups)) {
+    console.warn(`[mg] ВНИМАНИЕ: ${problem}`)
+  }
   console.log(`[mg] этап ${config.stageId} — ${config.stageUrl}`)
+  console.log(config.timerUrl
+    ? `[mg] таймер   ${config.timerUrl} раз в ${config.timerPollInterval} мс`
+    : '[mg] таймер   не задан — зона времени покажет время первой попытки')
   console.log(`[mg] оверлей  http://localhost:${config.port}/overlay`)
   console.log(`[mg] пульт    http://localhost:${config.port}/control`)
 })

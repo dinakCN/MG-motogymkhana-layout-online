@@ -1,4 +1,5 @@
 import eventConfig from '../event.config.js'
+import { UNGROUPED } from './state.js'
 
 const URL_RE = /^https?:\/\//i
 const ID_IN_URL = /[?&]id=(\d+)/
@@ -27,6 +28,49 @@ export function resolveStage(value, template) {
   return { stageId: id, stageUrl: raw }
 }
 
+// Таймер задают адресом прибора или полной ссылкой — как и этап.
+// Пусто означает «таймера нет»: сервер просто не заводит второй опрос,
+// а зона времени в кадре показывает время первой попытки.
+export function resolveTimerUrl(value) {
+  const raw = String(value ?? '').trim()
+  if (!raw || raw === '0') return null
+
+  return URL_RE.test(raw) ? raw : `http://${raw}/laptime`
+}
+
+// Опечатки в составе групп ничем себя не проявляют: «Вне групп» не
+// появится, счётчики сойдутся, а человек уедет не в свой зачёт или
+// оператор увидит в списке два одинаковых пункта. Поэтому конфиг
+// проверяется отдельно — тестом перед эфиром и логом при старте.
+export function awardGroupsProblems(groups = []) {
+  const problems = []
+  const seen = new Set()
+
+  for (const group of groups) {
+    if (group.name === UNGROUPED) {
+      problems.push(`группа «${group.name}» называется как место сбора аномалий — они сольются в один пункт`)
+    }
+    if (seen.has(group.name)) {
+      problems.push(`группа «${group.name}» задана дважды — в пульте это два неразличимых пункта`)
+    }
+    seen.add(group.name)
+  }
+
+  const owner = new Map()
+  for (const group of groups) {
+    for (const sportClass of group.classes ?? []) {
+      const first = owner.get(sportClass)
+      if (first) {
+        problems.push(`класс ${sportClass} есть и в «${first}», и в «${group.name}» — участники уедут в первую`)
+      } else {
+        owner.set(sportClass, group.name)
+      }
+    }
+  }
+
+  return problems
+}
+
 export function loadConfig(env = process.env, event = eventConfig) {
   const template = event.stageUrlTemplate || 'https://gymkhana-cup.ru/competitions/stage?id={id}'
 
@@ -49,6 +93,10 @@ export function loadConfig(env = process.env, event = eventConfig) {
     stageUrl: current.stageUrl,
     liveStageId: live.stageId,
     pollInterval: Number(env.POLL_INTERVAL) || Number(event.pollInterval) || 7000,
+    // TIMER=0 гасит таймер, не трогая event.config.js: на репетиции прибора
+    // может не быть, а лезть в файл перед эфиром — лишний способ ошибиться.
+    timerUrl: resolveTimerUrl(env.TIMER ?? event.timer),
+    timerPollInterval: Number(env.TIMER_POLL) || Number(event.timerPollInterval) || 300,
     highlightTimeout: Number(env.HIGHLIGHT_TIMEOUT) || Number(event.highlightTimeout) || 6000,
     showRunTime: env.SHOW_RUN_TIME ? env.SHOW_RUN_TIME !== '0' : event.showRunTime !== false,
     showClassTop: env.SHOW_CLASS_TOP ? env.SHOW_CLASS_TOP !== '0' : event.showClassTop !== false,

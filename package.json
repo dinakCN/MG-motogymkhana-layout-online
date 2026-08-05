@@ -8,7 +8,8 @@
     "start": "node server/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "fixture": "node scripts/fetch-fixture.js"
+    "fixture": "node scripts/fetch-fixture.js",
+    "timer": "node scripts/timer.js"
   },
   "dependencies": {
     "cheerio": "^1.2.0",
