@@ -79,7 +79,7 @@ const rows = computed(() => groups.value.map(group => ({
   <div class="results">
     <header>
       <h1>{{ state.eventTitle }}</h1>
-      <LogoBug :src="state.logoMarkUrl" />
+      <LogoBug flow :src="state.logoMarkUrl" />
     </header>
 
     <div ref="body" class="body" :class="{ masked: needsScroll }">
@@ -142,7 +142,15 @@ const rows = computed(() => groups.value.map(group => ({
   flex-direction: column;
 }
 
-header { position: relative; margin-bottom: 26px; }
+/* Заголовок и жучок стоят в одном ряду, а не наложены друг на друга: высота
+   шапки берётся от плитки жучка, и таблица начинается заведомо ниже её.
+   Так шапку колонок первой группы нечем накрыть, чем бы ни оказался логотип. */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 26px;
+}
 
 h1 {
   font-size: 36px;

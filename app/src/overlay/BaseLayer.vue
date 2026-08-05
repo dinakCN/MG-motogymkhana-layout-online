@@ -1,10 +1,13 @@
 <script setup>
+import { computed } from 'vue'
+
 // Базовый слой всей полноэкранной графики: фон, логотип и место под
 // содержимое. Заставка — это он же без содержимого; пауза и награждение
 // кладут на него свои элементы. Фон описан здесь один раз, поэтому
 // сцены не расходятся между собой.
-defineProps({
+const props = defineProps({
   logoUrl: { type: String, default: '/assets/logo.png' },
+  logoMarkUrl: { type: String, default: '/assets/logo-mark.png' },
   logo: { type: String, default: 'medium' },
   quiet: { type: Boolean, default: false },
 
@@ -14,12 +17,22 @@ defineProps({
   // окажется светлым.
   plate: { type: Boolean, default: true },
 })
+
+// Надпись под эмблемой держится только в большом слоте. В нём логотипу
+// достаётся 138 px по высоте, и «MOTOGYMKHANA NSK» читается; в среднем это
+// уже 92 px, в малом — 60, и надпись превращается в кашу. Поэтому туда идёт
+// знак без надписи: он на тех же высотах узнаётся, и эмблема выходит крупнее —
+// вордмарк не отъедает шестую часть высоты слота.
+//
+// Правило живёт здесь, рядом с самими высотами: поменяется размер слота —
+// поменяется и выбор, и разъехаться им негде.
+const src = computed(() => (props.logo === 'large' ? props.logoUrl : props.logoMarkUrl))
 </script>
 
 <template>
   <div class="base" :class="{ quiet }">
     <div class="logo-slot" :class="[`logo-${logo}`, { plate }]">
-      <img :src="logoUrl" alt="" />
+      <img :src="src" alt="" />
     </div>
     <slot />
   </div>

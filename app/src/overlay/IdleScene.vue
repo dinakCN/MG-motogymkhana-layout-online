@@ -8,7 +8,7 @@ defineProps({ state: { type: Object, required: true } })
   <!-- Заставка — базовый слой и ничего больше. Никаких заголовков и
        расписания: она рассчитана на то, чтобы висеть в кадре долго
        и не требовать обновления. -->
-  <BaseLayer :logo-url="state.logoUrl" logo="large" quiet>
+  <BaseLayer :logo-url="state.logoUrl" :logo-mark-url="state.logoMarkUrl" logo="large" quiet>
     <p class="event">{{ state.eventTitle }}</p>
   </BaseLayer>
 </template>

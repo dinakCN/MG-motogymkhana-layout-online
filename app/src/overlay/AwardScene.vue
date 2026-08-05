@@ -30,7 +30,7 @@ const podium = computed(() => {
 </script>
 
 <template>
-  <BaseLayer :logo-url="state.logoUrl" logo="small">
+  <BaseLayer :logo-url="state.logoUrl" :logo-mark-url="state.logoMarkUrl" logo="small">
     <h1>{{ state.award.subject || '—' }}</h1>
 
     <div class="podium">

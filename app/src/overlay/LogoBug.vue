@@ -2,11 +2,19 @@
 // В угол идёт знак без надписи (state.logoMarkUrl): на высоте жучка вордмарк
 // превращается в кашу, а знак узнаётся. Если знак в конфиге не задан, сервер
 // подставит сюда обычный логотип — мелко, но лучше пустого угла.
-defineProps({ src: { type: String, default: '/assets/logo-mark.png' } })
+defineProps({
+  src: { type: String, default: '/assets/logo-mark.png' },
+
+  // В таблице результатов жучок стоит в потоке шапки, а не поверх кадра:
+  // непрозрачная плитка, положенная в угол абсолютно, накрыла бы шапку
+  // колонок первой группы. Прежний логотип висел там же и этого не показывал —
+  // он был прозрачной линейной графикой, и накрывать ему было нечем.
+  flow: { type: Boolean, default: false },
+})
 </script>
 
 <template>
-  <div class="logo-bug surface">
+  <div class="logo-bug surface" :class="{ flow }">
     <img :src="src" alt="" />
   </div>
 </template>
@@ -17,16 +25,20 @@ defineProps({ src: { type: String, default: '/assets/logo-mark.png' } })
    на асфальте в тени, светлые — на небе. Материал тот же, что у карточки
    райдера и топа класса, поэтому угол читается как часть той же графики. */
 .logo-bug {
-  position: absolute;
-  top: 32px;
-  right: 48px;
-  padding: 14px;
+  padding: 10px;
   border-radius: var(--r-md);
   display: flex;
   animation: bug-in 350ms ease-out;
 }
 
-.logo-bug img { height: 80px; width: auto; display: block; }
+/* 72 px в сумме — габарит прежнего жучка: сцены под него уже размечены. */
+.logo-bug img { height: 52px; width: auto; display: block; }
+
+.logo-bug:not(.flow) {
+  position: absolute;
+  top: 32px;
+  right: 48px;
+}
 
 /* Выезжает при появлении сцены и дальше стоит неподвижно —
    вещательный «жучок», а не постоянно движущийся элемент. */

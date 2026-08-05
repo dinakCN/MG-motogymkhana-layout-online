@@ -11,7 +11,7 @@ const text = computed(() => roundText(props.state.round))
 </script>
 
 <template>
-  <BaseLayer :logo-url="state.logoUrl" logo="medium">
+  <BaseLayer :logo-url="state.logoUrl" :logo-mark-url="state.logoMarkUrl" logo="medium">
     <h1>{{ text.title }}</h1>
     <p v-if="text.sub" class="sub">{{ text.sub }}</p>
     <p class="event">{{ state.eventTitle }}</p>
