@@ -87,26 +87,67 @@ export function nextTimer(prev, reading, receivedAt) {
   return { phase: 'idle', startedAt: null, time: null, updatedAt: receivedAt }
 }
 
+// Прибор не отвечает примерно на один запрос из ста — рвать на этом связь
+// нельзя. Три секунды тишины — это уже десяток пропусков подряд: прибор
+// выключили, унесли или сеть площадки развалилась.
+const LINK_TIMEOUT = 3000
+
+// Признак связи с прибором, отдельный от показаний. Без него пропажу видно
+// только по кадру: зона времени тихо возвращается ко времени первой попытки,
+// и выглядит это как замысел, а не как поломка.
+//
+// online: true — отвечает, false — не отвечает, null — ещё неизвестно.
+// Третье значение нужно ради первых секунд после запуска: первый запрос
+// уходит в ту же секунду, что и старт сервера, и объявлять прибор пропавшим
+// по одному неответу значило бы пугать оператора на ровном месте. seenAt —
+// последний удачный ответ, а до него точка, с которой пошло ожидание.
+//
+// Чистый шаг, как и nextTimer: прошлый признак, исход запроса и его момент.
+export function nextLink(prev, { ok, at }) {
+  if (ok) return { online: true, seenAt: at }
+  if (!prev) return { online: null, seenAt: at }
+  if (prev.online === false) return prev
+
+  return at - prev.seenAt < LINK_TIMEOUT ? prev : { online: false, seenAt: prev.seenAt }
+}
+
 // Ответ прибора — десяток байт, и ждать его дольше интервала опроса
 // бессмысленно: следующий запрос всё равно принесёт свежее показание.
 const REQUEST_TIMEOUT = 1000
 
+// Возвращает true, если есть что разослать: свежие показания или перемена
+// связи. Перемену разносим наравне с показаниями — иначе пульт узнал бы
+// о пропаже прибора только со следующим удачным опросом, то есть никогда.
 export async function pollTimerOnce(state, { url, fetchImpl = fetch, now = Date.now }) {
-  let text
+  let text = null
   try {
     const response = await fetchImpl(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT) })
-    if (!response.ok) return false
-    text = await response.text()
+    if (response.ok) text = await response.text()
   } catch {
-    // Молчим намеренно. Прибор не отвечает примерно на один запрос из ста,
-    // и жалоба на каждый залила бы журнал за день эфира.
-    return false
+    // Молчим намеренно. Жалоба на каждый неудачный запрос залила бы журнал
+    // за день эфира; вместо неё — признак связи ниже, он говорит один раз.
   }
 
+  // Время снимаем по завершении запроса, а не перед ним: nextTimer считает
+  // точку старта как «сейчас минус показание», и задержка сети обязана
+  // сдвигать эту оценку в позднюю сторону — только тогда самая ранняя из
+  // оценок и есть истина.
+  const at = now()
   const reading = parseReading(text)
-  if (!reading) return false
 
-  state.timer = nextTimer(state.timer, reading, now())
+  const was = state.timerLink?.online ?? null
+  state.timerLink = nextLink(state.timerLink, { ok: Boolean(reading), at })
+  const linkChanged = state.timerLink.online !== was
+
+  if (linkChanged) {
+    console.warn(state.timerLink.online
+      ? '[timer] прибор отвечает'
+      : '[timer] прибор не отвечает — проверьте адрес и сеть; в кадре останется время первой попытки')
+  }
+
+  if (!reading) return linkChanged
+
+  state.timer = nextTimer(state.timer, reading, at)
   return true
 }
 

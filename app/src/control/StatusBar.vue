@@ -33,6 +33,18 @@ const level = computed(() => {
 const rehearsal = computed(
   () => Boolean(props.state.liveStageId && props.state.stageId !== props.state.liveStageId),
 )
+
+// Прибор на трассе может уехать из сети незаметно: его выключили, унесли,
+// роутер площадки перезагрузился. В кадре это выглядит не как поломка —
+// зона времени просто возвращается ко времени первой попытки. Здесь пропажа
+// названа словами. Этапа без прибора это не касается: там молчание — замысел.
+const timerLabel = computed(() => {
+  if (!props.state.timerConfigured) return null
+
+  const online = props.state.timerLink?.online
+  if (online === null || online === undefined) return 'таймер: проверка связи'
+  return online ? 'таймер на связи' : 'ТАЙМЕР НЕ ОТВЕЧАЕТ'
+})
 </script>
 
 <template>
@@ -42,6 +54,11 @@ const rehearsal = computed(
 
     <span class="sep">·</span>
     <span :class="{ warn: !connected }">{{ connected ? 'сервер на связи' : 'НЕТ СВЯЗИ С СЕРВЕРОМ' }}</span>
+
+    <template v-if="timerLabel">
+      <span class="sep">·</span>
+      <span :class="{ warn: state.timerLink?.online === false }">{{ timerLabel }}</span>
+    </template>
 
     <span class="sep">·</span>
     <!-- Номер этапа на виду: защита от эфира на данных полигона. -->

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { parseReading, nextTimer, formatMs, pollTimerOnce } from '../server/timer.js'
+import { parseReading, nextTimer, formatMs, pollTimerOnce, nextLink } from '../server/timer.js'
 import { parseTimeToSeconds } from '../app/src/shared/format.js'
 
 // Запись живых заездов с прибора, снятая 05.08.2026: строки вида
@@ -214,7 +214,97 @@ describe('запись живого заезда', () => {
   })
 })
 
+// Прибор может уехать из сети незаметно: его выключили, унесли, роутер
+// площадки перезагрузился. Опросчик молчит об этом намеренно — жалоба на
+// каждый неудачный запрос залила бы журнал за день. Значит связь надо
+// держать отдельным признаком: без него пропажу прибора видно только по
+// кадру, где зона времени тихо возвращается ко времени первой попытки.
+describe('связь с прибором', () => {
+  it('первое разобранное показание — прибор на связи', () => {
+    expect(nextLink(null, { ok: true, at: 1000 })).toEqual({ online: true, seenAt: 1000 })
+  })
+
+  // Первый запрос уходит в ту же секунду, что и запуск сервера. Объявить
+  // прибор пропавшим по одному неответу значило бы пугать оператора там,
+  // где прибор просто не успел ответить.
+  it('первый неответ — ещё не приговор', () => {
+    expect(nextLink(null, { ok: false, at: 1000 }).online).toBe(null)
+  })
+
+  // Самая частая беда дня: в event.config.js остался адрес прошлой сети.
+  // Прибор при этом не «пропал» — он не отвечал ни разу, и сказать об этом
+  // надо ровно так же.
+  it('молчащий с самого запуска прибор признаётся недоступным', () => {
+    const waiting = nextLink(null, { ok: false, at: 1000 })
+    expect(nextLink(waiting, { ok: false, at: 4000 }).online).toBe(false)
+  })
+
+  // Прибор не отвечает примерно на один запрос из ста — это его норма.
+  it('одиночный пропуск связь не рвёт', () => {
+    const link = nextLink({ online: true, seenAt: 1000 }, { ok: false, at: 1300 })
+    expect(link.online).toBe(true)
+  })
+
+  it('три секунды тишины — это уже пропажа', () => {
+    const link = nextLink({ online: true, seenAt: 1000 }, { ok: false, at: 4000 })
+    expect(link.online).toBe(false)
+  })
+
+  it('вернувшийся прибор снова на связи', () => {
+    const link = nextLink({ online: false, seenAt: 1000 }, { ok: true, at: 9000 })
+    expect(link).toEqual({ online: true, seenAt: 9000 })
+  })
+})
+
 describe('pollTimerOnce', () => {
+  it('перемену связи разносит как и показания — иначе пульт о ней не узнает', async () => {
+    const state = { timer: null, timerLink: { online: true, seenAt: 1000 } }
+    const changed = await pollTimerOnce(state, {
+      url: 'http://x/laptime',
+      fetchImpl: async () => { throw new Error('ECONNREFUSED') },
+      now: () => 5000,
+    })
+
+    expect(changed).toBe(true)
+    expect(state.timerLink.online).toBe(false)
+  })
+
+  it('о приборе, молчащем с запуска, пульт тоже узнаёт', async () => {
+    const state = { timer: null, timerLink: { online: null, seenAt: 1000 } }
+    const changed = await pollTimerOnce(state, {
+      url: 'http://x/laptime',
+      fetchImpl: async () => { throw new Error('EHOSTUNREACH') },
+      now: () => 4000,
+    })
+
+    expect(changed).toBe(true)
+    expect(state.timerLink.online).toBe(false)
+  })
+
+  // Точку старта считают от момента, когда показание получено, а не когда
+  // запрос ушёл: задержка сети обязана сдвигать оценку в позднюю сторону,
+  // иначе самая ранняя из оценок перестаёт быть истиной и отсчёт в кадре
+  // идёт впереди прибора.
+  it('точку старта считает от момента ответа, а не от момента запроса', async () => {
+    let clock = 1000
+    const slowFetch = async () => {
+      clock += 200
+      return { ok: true, status: 200, text: async () => '11200' }
+    }
+
+    const state = { timer: null, timerLink: null }
+    await pollTimerOnce(state, { url: 'http://x/laptime', fetchImpl: slowFetch, now: () => clock })
+
+    expect(state.timer.startedAt).toBe(1000)
+  })
+
+  it('пока прибор отвечает, связь держится', async () => {
+    const state = { timer: null, timerLink: null }
+    await pollTimerOnce(state, { url: 'http://x/laptime', fetchImpl: ok('1019718'), now: () => 10_000 })
+
+    expect(state.timerLink).toEqual({ online: true, seenAt: 10_000 })
+  })
+
   it('заполняет показания из ответа прибора', async () => {
     const state = { timer: null }
     const changed = await pollTimerOnce(state, {

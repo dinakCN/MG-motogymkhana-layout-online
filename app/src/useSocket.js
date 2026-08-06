@@ -31,7 +31,13 @@ export function useSocket() {
       // один, и разойтись показаниям с остальным кадром негде. Точечная
       // запись поля будит только тех, кто читает timer, — таблица
       // результатов на этом не перерисовывается.
-      if (message?.type === 'timer' && state.value) state.value.timer = message.payload
+      // Связь с прибором едет тем же сообщением и в то же поле, что и в
+      // состоянии: вкладка, открытая позже, берёт её из первого 'state',
+      // а дальше обновляет отсюда — разойтись этим двум негде.
+      if (message?.type === 'timer' && state.value) {
+        state.value.timer = message.payload
+        state.value.timerLink = message.link
+      }
     })
 
     // Переподключение обязательно: OBS может пересоздать источник,
