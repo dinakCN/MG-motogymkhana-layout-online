@@ -2,7 +2,7 @@
 import { computed, ref, watch, nextTick } from 'vue'
 import { groupByClass, bestOf, attemptLabel, isDnf, isScratched, NO_RESULT_LABELS } from '../shared/format.js'
 import { sectionsOfGroups } from '../shared/awardGroups.js'
-import LogoBug from './LogoBug.vue'
+import SheetLayer from './SheetLayer.vue'
 
 const props = defineProps({ state: { type: Object, required: true } })
 
@@ -111,13 +111,8 @@ const rows = computed(() => sections.value.map(section => ({
 </script>
 
 <template>
-  <div class="results">
-    <header>
-      <h1>{{ state.eventTitle }}</h1>
-      <LogoBug flow :src="state.logoMarkUrl" />
-    </header>
-
-    <div ref="body" class="body" :class="{ masked: needsScroll }">
+  <SheetLayer :title="state.eventTitle" :logo-mark-url="state.logoMarkUrl">
+    <div ref="body" class="scroll" :class="{ masked: needsScroll }">
       <div
         ref="grid"
         class="grid"
@@ -162,50 +157,24 @@ const rows = computed(() => sections.value.map(section => ({
         </section>
       </div>
     </div>
-  </div>
+  </SheetLayer>
 </template>
 
 <style scoped>
-.results {
-  width: 100%;
-  height: 100%;
-  /* Плотная подложка: десятки строк поверх светлого асфальта нечитаемы,
-     а проверить освещение на площадке будет негде. Мягкое тёплое свечение
-     сверху не даёт фону читаться как плоская заливка. */
-  background:
-    radial-gradient(120% 80% at 50% -10%, rgba(255, 159, 10, 0.13) 0%, transparent 60%),
-    linear-gradient(170deg, #10141a 0%, #0a0d12 100%);
-  padding: 36px 52px;
-  display: flex;
-  flex-direction: column;
-}
+/* Фон и шапка живут в SheetLayer — общем слое со схемой трассы. Здесь
+   остаётся только то, что относится к самой таблице.
 
-/* Заголовок и жучок стоят в одном ряду, а не наложены друг на друга: высота
-   шапки берётся от плитки жучка, и таблица начинается заведомо ниже её.
-   Так шапку колонок первой группы нечем накрыть, чем бы ни оказался логотип.
-   Плитка выросла до --band-h, шапка выросла вместе с ней, и недостающая
-   высота ушла в прокрутку — measure() считает её от факта, а не от числа
-   в стилях, поэтому подстраиваться руками здесь нечему. */
-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 26px;
-}
-
-h1 {
-  font-size: 36px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
-
-.body { flex: 1; overflow: hidden; }
+   Высота прокручиваемой области берётся от слота: плитка жучка задаёт
+   высоту шапки, а недостающая таблице высота уходит в прокрутку —
+   measure() считает её от факта, а не от числа в стилях, поэтому
+   подстраиваться руками здесь нечему. */
+.scroll { height: 100%; overflow: hidden; }
 
 /* Только когда список едет: строки на кромках растворяются вместо резкого
    обреза. Без прокрутки маска не нужна и не гасит верхнюю строку. */
 /* Префикс обязателен: OBS рендерит источник через CEF, и версия Chromium
    там может быть старше настольного браузера. */
-.body.masked {
+.scroll.masked {
   -webkit-mask-image: linear-gradient(
     to bottom,
     transparent 0,

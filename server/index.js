@@ -5,9 +5,10 @@ import { dirname, join } from 'node:path'
 import express from 'express'
 import { WebSocketServer } from 'ws'
 import { config, awardGroupsProblems } from './config.js'
-import { readStateFile, saveState, applyCommand, applyServerConfig, syncAwardSubject, clearStaleHighlight } from './state.js'
+import { readStateFile, saveState, applyCommand, applyServerConfig, syncAwardSubject, syncTrackScene, clearStaleHighlight } from './state.js'
 import { startPolling } from './poller.js'
 import { startTimerPolling } from './timer.js'
+import { prepareTrackMap } from './trackMap.js'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -18,15 +19,27 @@ const STATE_PATH = join(root, `state.${config.stageId}.json`)
 
 const { state, restored } = readStateFile(STATE_PATH)
 
+// Скан со сканера весит мегабайты, а в кадре занимает вдесятеро меньше
+// пикселей. Копию готовим здесь, а не только при сборке: event.config.js
+// обещает, что файлы в public/assets подкладывают без пересборки, и схему
+// положат утром именно так. Работа пропускается, если копия уже свежая,
+// поэтому обычный npm start ничего не ждёт.
+const trackMapUrl = await prepareTrackMap(config.trackMapUrl, { root })
+
 // Настройки этапа едут вместе с состоянием: иначе они существовали бы
 // только в event.config.js и ни на что не влияли. Что при этом принадлежит
 // файлу этапа, а что оператору, разбирает applyServerConfig.
-applyServerConfig(state, config, { restored })
+applyServerConfig(state, { ...config, trackMapUrl }, { restored })
 
 // Состав групп мог поменяться, пока сервер лежал: выбранной группы больше
 // нет — снимаем выбор, чтобы в кадр не ушёл её заголовок поверх пустого
 // подиума, а оператор не смотрел на пустой селектор.
 syncAwardSubject(state)
+
+// Схему могли убрать из конфига, пока сервер лежал, — а в состоянии она
+// осталась активной сценой. Без сброса кадр поднялся бы с надписью о том,
+// что схема не загрузилась.
+syncTrackScene(state)
 
 // Хайлайт, переживший падение, снимаем: его страховочный таймер заводится
 // командой пульта, а её после падения не было — нижняя треть осталась бы
@@ -140,6 +153,9 @@ server.listen(config.port, config.host, () => {
     console.warn(`[mg] ВНИМАНИЕ: ${problem}`)
   }
   console.log(`[mg] этап ${config.stageId} — ${config.stageUrl}`)
+  console.log(state.trackMapUrl
+    ? `[mg] схема    ${state.trackMapUrl}`
+    : '[mg] схема    не задана — сцена «Схема трассы» в пульте погашена')
   console.log(config.timerUrl
     ? `[mg] таймер   ${config.timerUrl} раз в ${config.timerPollInterval} мс`
     : '[mg] таймер   не задан — зона времени покажет время первой попытки')

@@ -1,0 +1,17 @@
+<!-- Заглушка на месте схемы трассы: пустой лист A4 альбомной ориентации.
+     Заменяется сканом настоящей схемы — положить файл рядом и вписать имя
+     в event.config.js, поле trackMap. Пересобирать статику не нужно.
+
+     Вектор, а не PNG: весит меньше килобайта, не мылится на 1920 и виден
+     в истории репозитория как текст. Уменьшению не подлежит — server/trackMap.js
+     пропускает SVG намеренно. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 297 210" width="297" height="210">
+  <rect width="297" height="210" fill="#ffffff"/>
+  <rect x="12" y="12" width="273" height="186" fill="none" stroke="#c7c7cc" stroke-width="0.6" stroke-dasharray="4 3"/>
+
+  <g font-family="Golos Text, -apple-system, system-ui, sans-serif" text-anchor="middle">
+    <text x="148.5" y="99" font-size="15" font-weight="700" fill="#1c1c1e" letter-spacing="0.3">СХЕМА ТРАССЫ</text>
+    <text x="148.5" y="113" font-size="6" font-weight="400" fill="#8e8e93">файл-заглушка — заменить перед эфиром</text>
+    <text x="148.5" y="122" font-size="4.6" font-weight="400" fill="#aeaeb2">event.config.js · поле trackMap</text>
+  </g>
+</svg>

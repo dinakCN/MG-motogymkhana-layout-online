@@ -38,6 +38,18 @@ export function resolveTimerUrl(value) {
   return URL_RE.test(raw) ? raw : `http://${raw}/laptime`
 }
 
+// Схему трассы задают путём к файлу или полной ссылкой — как логотип.
+// Пусто означает «схемы на этом этапе нет»: сцена не появится в пульте вовсе.
+// Умолчания здесь нет намеренно. Логотип есть на каждом этапе, поэтому ему
+// путь подставляется; схему рисуют не всегда, и подставленный путь дал бы
+// оператору живую кнопку, за которой лежит несуществующий файл.
+export function resolveTrackMap(value) {
+  const raw = String(value ?? '').trim()
+  // TRACK_MAP=0 гасит схему, не трогая event.config.js — тем же приёмом,
+  // что и таймер: лезть в файл перед эфиром лишний способ ошибиться.
+  return !raw || raw === '0' ? '' : raw
+}
+
 // Опечатки в составе групп ничем себя не проявляют: «Вне групп» не
 // появится, счётчики сойдутся, а человек уедет не в свой зачёт или
 // оператор увидит в списке два одинаковых пункта. Поэтому конфиг
@@ -105,6 +117,9 @@ export function loadConfig(env = process.env, event = eventConfig) {
     eventTitle: event.eventTitle,
     logoUrl,
     logoMarkUrl: env.LOGO_MARK || event.logoMark || logoUrl,
+    // Схема трассы. Сервер при старте подменит этот путь на уменьшенную
+    // копию, если она нужна и получилась (server/trackMap.js).
+    trackMapUrl: resolveTrackMap(env.TRACK_MAP ?? event.trackMap),
     stageId: current.stageId,
     stageUrl: current.stageUrl,
     liveStageId: live.stageId,

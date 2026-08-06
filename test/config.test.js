@@ -80,6 +80,36 @@ describe('знак для угла кадра', () => {
   })
 })
 
+describe('схема трассы', () => {
+  it('путь из файла доезжает до конфига сервера', () => {
+    const c = loadConfig({}, { ...eventConfig, trackMap: '/assets/track-677.png' })
+    expect(c.trackMapUrl).toBe('/assets/track-677.png')
+  })
+
+  it('полная ссылка принимается — схема этапа может лежать не у нас', () => {
+    const url = 'https://example.org/track.png'
+    expect(loadConfig({}, { ...eventConfig, trackMap: url }).trackMapUrl).toBe(url)
+  })
+
+  it('TRACK_MAP перекрывает файл — проверка чужой схемы без правки конфига', () => {
+    const c = loadConfig({ TRACK_MAP: '/assets/other.png' }, eventConfig)
+    expect(c.trackMapUrl).toBe('/assets/other.png')
+  })
+
+  // Умолчания у схемы нет и быть не может: логотип есть на каждом этапе,
+  // а схему рисуют не всегда. Подставив сюда путь, мы отдали бы в пульт
+  // живую кнопку, за которой лежит несуществующий файл.
+  it('без поля схемы нет — это пусто, а не путь по умолчанию', () => {
+    expect(loadConfig({}, { ...eventConfig, trackMap: undefined }).trackMapUrl).toBe('')
+    expect(loadConfig({}, { ...eventConfig, trackMap: '' }).trackMapUrl).toBe('')
+  })
+
+  it('TRACK_MAP=0 гасит схему, не трогая event.config.js', () => {
+    const c = loadConfig({ TRACK_MAP: '0' }, { ...eventConfig, trackMap: '/assets/track-map.svg' })
+    expect(c.trackMapUrl).toBe('')
+  })
+})
+
 describe('resolveStage — номер или полная ссылка', () => {
   it('из номера собирает адрес по шаблону', () => {
     expect(resolveStage('677', TEMPLATE)).toEqual({

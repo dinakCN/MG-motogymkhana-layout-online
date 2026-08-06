@@ -1,5 +1,13 @@
 <script setup>
-defineProps({ active: { type: String, required: true } })
+defineProps({
+  active: { type: String, required: true },
+
+  // Сцены, которым нечего показать на этом этапе: схема трассы без файла.
+  // Кнопка гаснет и не нажимается — в эфир из пульта не должно уходить
+  // ничего, что заведомо окажется пустым кадром. Сервер такую команду
+  // отвергает и сам, здесь дело в том, чтобы оператор видел это заранее.
+  unavailable: { type: Array, default: () => [] },
+})
 const emit = defineEmits(['pick'])
 
 const SCENES = [
@@ -10,6 +18,7 @@ const SCENES = [
   { key: 'award', label: 'Награждение', hot: '5' },
   { key: 'idle', label: 'Заставка', hot: '6' },
   { key: 'clean', label: 'Чистый кадр', hot: '7' },
+  { key: 'track', label: 'Схема', hot: '8' },
 ]
 </script>
 
@@ -20,6 +29,8 @@ const SCENES = [
       :key="scene.key"
       class="tab"
       :class="{ active: active === scene.key }"
+      :disabled="unavailable.includes(scene.key)"
+      :title="unavailable.includes(scene.key) ? 'файл не задан в event.config.js' : null"
       @click="emit('pick', scene.key)"
     >
       <span class="hot">{{ scene.hot }}</span>
@@ -56,9 +67,18 @@ const SCENES = [
     background 180ms ease, box-shadow 180ms ease;
 }
 
-.tab:hover { background: rgba(255, 255, 255, 0.14); }
-.tab:active { transform: scale(0.98); }
+.tab:hover:not(:disabled) { background: rgba(255, 255, 255, 0.14); }
+.tab:active:not(:disabled) { transform: scale(0.98); }
 .tab:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* Погашенная кнопка остаётся на месте, а не исчезает: ряд вкладок —
+   мышечная память оператора, и вкладки не должны переезжать от того,
+   готова схема на этом этапе или нет. */
+.tab:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.04);
+}
 
 /* Активная сцена должна читаться с другого конца стола: заливка плюс
    свечение, а не только смена цвета текста. */

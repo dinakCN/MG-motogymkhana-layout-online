@@ -5,7 +5,9 @@ import { readFileSync, writeFileSync, renameSync, copyFileSync } from 'node:fs'
 // держать в кадре сколько угодно долго.
 // clean — прозрачная заглушка: работает камера, мы держим только айдентику.
 // От idle отличается тем, что не закрывает кадр: та гасит картинку целиком.
-export const SCENES = ['results', 'run', 'highlight', 'break', 'award', 'idle', 'clean']
+// track — схема трассы файлом. Единственная сцена, которой может не быть:
+// без файла показывать нечего, и команда на неё отвергается.
+export const SCENES = ['results', 'run', 'highlight', 'break', 'award', 'idle', 'clean', 'track']
 
 // Ключи моментов дня продублированы в app/src/shared/rounds.js (там же тексты
 // для кадра). Сервер не импортирует клиентский код, поэтому совпадение
@@ -26,6 +28,10 @@ export function createDefaultState() {
     eventTitle: 'Чемпионат Новосибирской области по мотоджимхане 2026',
     logoUrl: '/assets/logo.png',
     logoMarkUrl: '/assets/logo-mark.png',
+    // Схема трассы: путь к файлу или пусто, если её на этапе нет. Пустое
+    // значение гасит кнопку в пульте и запрещает команду — умолчания здесь
+    // нет намеренно, в отличие от логотипов выше.
+    trackMapUrl: '',
     stageId: null,
     // Перекрываются настройками сервера при старте (server/index.js).
     // Здесь — чтобы состояние было полным даже без него, например в тестах.
@@ -233,6 +239,18 @@ export function syncAwardSubject(state) {
   return true
 }
 
+// Схему могли убрать из конфига, пока сервер лежал: этап кончился, файл
+// переложили, поле стёрли. В сохранённом состоянии она при этом осталась
+// активной сценой — и поднятый сервер вывел бы в кадр надпись о том, что
+// схема не загрузилась. Возвращает true, если пришлось сбрасывать.
+export function syncTrackScene(state) {
+  if (state.activeScene !== 'track' || state.trackMapUrl) return false
+
+  console.warn('[state] схема трассы исчезла из конфига — кадр возвращён к таблице')
+  state.activeScene = 'results'
+  return true
+}
+
 // Тумблеры кадра: ими распоряжаются и команда пульта ('setSceneOption'),
 // и настройки этапа при старте — одни и те же поля состояния.
 const SCENE_OPTIONS = ['showRunTime', 'showClassTop', 'resultsByGroup']
@@ -255,6 +273,9 @@ export function applyServerConfig(state, config, { restored } = {}) {
   state.eventTitle = config.eventTitle
   state.logoUrl = config.logoUrl
   state.logoMarkUrl = config.logoMarkUrl
+  // Трасса на этапе одна, и переключать её из пульта незачем: схема
+  // принадлежит файлу этапа так же, как логотип.
+  state.trackMapUrl = config.trackMapUrl ?? ''
   state.liveStageId = config.liveStageId
   state.highlightTimeout = config.highlightTimeout
   state.awardGroups = config.awardGroups
@@ -305,6 +326,10 @@ export function applyCommand(state, message) {
   switch (type) {
     case 'setActiveScene':
       if (!SCENES.includes(payload)) return false
+      // Схема без файла показала бы пустой лист с надписью об ошибке.
+      // Кнопка в пульте на этот случай погашена, но горячая клавиша прошла
+      // бы мимо неё — проверка обязана стоять здесь, у источника правды.
+      if (payload === 'track' && !state.trackMapUrl) return false
       state.activeScene = payload
       return true
 

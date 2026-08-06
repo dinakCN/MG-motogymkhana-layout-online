@@ -24,7 +24,13 @@ const participants = computed(() => state.value?.participants ?? [])
 
 const HOTKEYS = {
   1: 'results', 2: 'run', 3: 'highlight', 4: 'break', 5: 'award', 6: 'idle', 7: 'clean',
+  8: 'track',
 }
+
+// Схема трассы без файла показывать нечего. Кнопку в пульте гасим, но
+// решает всё равно сервер: он отвергает такую команду, и разойтись
+// пульту с кадром негде.
+const unavailable = computed(() => (state.value?.trackMapUrl ? [] : ['track']))
 
 // Пока курсор в поле ввода, цифры набирают номер; вне поля — переключают
 // сцены. Вход в поле — «/», выход — Esc.
@@ -50,7 +56,11 @@ function onKey(event) {
 
   if (inField) return
 
-  if (HOTKEYS[event.key]) send('setActiveScene', HOTKEYS[event.key])
+  // Клавиша погашенной вкладки молчит так же, как сама вкладка: сервер
+  // такую команду всё равно отвергнет, но оператор не должен видеть разное
+  // поведение мыши и клавиатуры.
+  const scene = HOTKEYS[event.key]
+  if (scene && !unavailable.value.includes(scene)) send('setActiveScene', scene)
 
   // Клавишу ловим по коду, а не по символу: в русской раскладке та же
   // клавиша даёт «е», и проверка по event.key молча перестала бы работать
@@ -101,7 +111,11 @@ function hideHighlight() {
 <template>
   <div v-if="state" class="control">
     <StatusBar :state="state" :connected="connected" />
-    <SceneTabs :active="state.activeScene" @pick="send('setActiveScene', $event)" />
+    <SceneTabs
+      :active="state.activeScene"
+      :unavailable="unavailable"
+      @pick="send('setActiveScene', $event)"
+    />
 
     <div class="main">
       <div class="left">

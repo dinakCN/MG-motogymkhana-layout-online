@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { rmSync, writeFileSync, readFileSync, mkdirSync, existsSync } from 'node:fs'
 import { bestOf } from '../app/src/shared/format.js'
 import { UNGROUPED, podiumOf } from '../app/src/shared/awardGroups.js'
-import { createDefaultState, applyParticipants, applyCommand, saveState, loadState, normalizeOverride, syncAwardSubject, clearStaleHighlight, applyServerConfig, UNGROUPED as SERVER_UNGROUPED, PODIUM_PLACES } from '../server/state.js'
+import { createDefaultState, applyParticipants, applyCommand, saveState, loadState, normalizeOverride, syncAwardSubject, syncTrackScene, clearStaleHighlight, applyServerConfig, UNGROUPED as SERVER_UNGROUPED, PODIUM_PLACES } from '../server/state.js'
 
 const rider = (id, fio) => ({
   id, athleteId: id, sportClass: 'C3', classColor: 'green', number: 28,
@@ -683,7 +683,7 @@ describe('применение настроек этапа при старте',
     logoUrl: '/assets/logo.png', logoMarkUrl: '/assets/logo-mark.png',
     highlightTimeout: 6000, showRunTime: true, showClassTop: true,
     resultsByGroup: false, awardGroups: [{ name: 'Любители', classes: ['D2'] }],
-    strictGroups: true, timerUrl: null, sceneOptionsFromEnv: [],
+    strictGroups: true, timerUrl: null, trackMapUrl: '', sceneOptionsFromEnv: [],
   }
 
   it('этап и оформление всегда из файла — иначе репетиция утекла бы в эфир', () => {
@@ -739,6 +739,17 @@ describe('применение настроек этапа при старте',
 
     applyServerConfig(s, stageConfig, { restored: true })
     expect(s.timerLink).toBe(null)
+  })
+
+  // Трасса на этапе одна, и переключать её из пульта незачем: схема
+  // принадлежит файлу этапа так же, как логотип. Сохранённое значение
+  // затирается — иначе после репетиции в кадре висела бы чужая трасса.
+  it('схема трассы всегда из файла этапа', () => {
+    const s = createDefaultState()
+    s.trackMapUrl = '/assets/прошлогодняя.png'
+
+    applyServerConfig(s, { ...stageConfig, trackMapUrl: '/assets/track-map.svg' }, { restored: true })
+    expect(s.trackMapUrl).toBe('/assets/track-map.svg')
   })
 
   // Пульту нужно отличать «прибора нет по замыслу» от «прибор пропал»:
@@ -984,5 +995,66 @@ describe('сцена «Чистый кадр»', () => {
     const s = createDefaultState()
     expect(applyCommand(s, { type: 'setActiveScene', payload: 'clean' })).toBe(true)
     expect(s.activeScene).toBe('clean')
+  })
+})
+
+// Сцена показывает единственное — файл со схемой. Без файла показывать
+// нечего, поэтому её нет вовсе: кнопка в пульте погашена, а сервер отвергает
+// команду. Проверка на сервере обязательна — иначе горячая клавиша прошла бы
+// мимо погашенной кнопки и вывела в эфир пустоту.
+describe('сцена «Схема трассы»', () => {
+  it('сервер её принимает, когда схема задана', () => {
+    const s = createDefaultState()
+    s.trackMapUrl = '/assets/track-map.svg'
+
+    expect(applyCommand(s, { type: 'setActiveScene', payload: 'track' })).toBe(true)
+    expect(s.activeScene).toBe('track')
+  })
+
+  it('без файла команда отвергается — показывать было бы нечего', () => {
+    const s = createDefaultState()
+    s.activeScene = 'results'
+
+    expect(applyCommand(s, { type: 'setActiveScene', payload: 'track' })).toBe(false)
+    expect(s.activeScene).toBe('results')
+  })
+
+  it('в состоянии по умолчанию схемы нет', () => {
+    expect(createDefaultState().trackMapUrl).toBe('')
+  })
+})
+
+// Вчера схему показывали, сервер сохранил её как активную сцену, сегодня
+// поле убрали из конфига. Без сброса сервер поднялся бы прямо в кадр,
+// где сказано, что схема не загрузилась.
+describe('syncTrackScene', () => {
+  it('возвращает кадр к таблице, если схема исчезла из конфига', () => {
+    const s = createDefaultState()
+    s.activeScene = 'track'
+    s.trackMapUrl = ''
+
+    expect(syncTrackScene(s)).toBe(true)
+    expect(s.activeScene).toBe('results')
+  })
+
+  it('оставляет сцену, когда файл на месте', () => {
+    const s = createDefaultState()
+    s.activeScene = 'track'
+    s.trackMapUrl = '/assets/track-map.svg'
+
+    expect(syncTrackScene(s)).toBe(false)
+    expect(s.activeScene).toBe('track')
+  })
+
+  // Схемы нет — обычное состояние этапа, где её не готовили. Трогать при
+  // этом чужую сцену нельзя: сервер, поднятый посреди награждения, обязан
+  // вернуться в награждение.
+  it('другие сцены не трогает даже без схемы', () => {
+    const s = createDefaultState()
+    s.activeScene = 'award'
+    s.trackMapUrl = ''
+
+    expect(syncTrackScene(s)).toBe(false)
+    expect(s.activeScene).toBe('award')
   })
 })

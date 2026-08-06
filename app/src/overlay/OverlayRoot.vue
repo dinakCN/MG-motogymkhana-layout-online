@@ -8,6 +8,7 @@ import BreakScene from './BreakScene.vue'
 import AwardScene from './AwardScene.vue'
 import IdleScene from './IdleScene.vue'
 import CleanScene from './CleanScene.vue'
+import TrackScene from './TrackScene.vue'
 import '../style.css'
 
 const SCENES = {
@@ -18,6 +19,7 @@ const SCENES = {
   award: AwardScene,
   idle: IdleScene,
   clean: CleanScene,
+  track: TrackScene,
 }
 
 const { state } = useSocket()

@@ -7,12 +7,13 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/fit-track-map.js",
     "start": "node server/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "fixture": "node scripts/fetch-fixture.js",
-    "timer": "node scripts/timer.js"
+    "timer": "node scripts/timer.js",
+    "trackmap": "node scripts/fit-track-map.js"
   },
   "dependencies": {
     "cheerio": "^1.2.0",
@@ -22,6 +23,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.8",
+    "sharp": "^0.35.3",
     "vite": "^8.2.0",
     "vitest": "^4.1.10"
   }
