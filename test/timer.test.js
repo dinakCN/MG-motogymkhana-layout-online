@@ -96,8 +96,17 @@ describe('nextTimer', () => {
     expect(t.startedAt).toBe(8900)
   })
 
+  // Прибор опрашивают трижды в секунду, поэтому заезд идёт цепочкой
+  // показаний, а не двумя точками: с дырами в наблюдении разговор особый,
+  // он ниже.
+  const untilStop = (from, to) => {
+    let t = nextTimer(null, run(3000), from)
+    for (let at = from + 300; at < to; at += 300) t = nextTimer(t, run(3000 + at - from), at)
+    return t
+  }
+
   it('остановка после хода — это финиш с временем прибора', () => {
-    let t = nextTimer(null, run(3000), 10_000)
+    let t = untilStop(10_000, 17_000)
     t = nextTimer(t, stop(10270), 17_000)
 
     expect(t.phase).toBe('finished')
@@ -105,7 +114,7 @@ describe('nextTimer', () => {
   })
 
   it('финиш держится, пока прибор стоит', () => {
-    let t = nextTimer(null, run(3000), 10_000)
+    let t = untilStop(10_000, 17_000)
     t = nextTimer(t, stop(10270), 17_000)
     t = nextTimer(t, stop(10270), 20_000)
 
@@ -115,7 +124,7 @@ describe('nextTimer', () => {
   })
 
   it('новый заезд после финиша считает точку старта заново', () => {
-    let t = nextTimer(null, run(3000), 10_000)
+    let t = untilStop(10_000, 17_000)
     t = nextTimer(t, stop(10270), 17_000)
     t = nextTimer(t, run(200), 30_000)
 
@@ -132,6 +141,28 @@ describe('nextTimer', () => {
     t = nextTimer(t, run(300), 20_000)             // прибор перезапустился
 
     expect(t.startedAt).toBe(19_700)
+  })
+
+  // Переход «ход → покой» достоверен только при непрерывном наблюдении.
+  // Прибор мог пропасть из сети посреди заезда и вернуться перезагруженным
+  // по питанию — с обнулённым табло. Объявить это финишем значило бы
+  // подписать «00:00.000» под именем спортсмена, который трассу прошёл.
+  it('после дыры в связи финиш не объявляется — что было на трассе, неизвестно', () => {
+    let t = nextTimer(null, run(3000), 10_000)
+    for (let at = 10_300; at < 18_000; at += 300) t = nextTimer(t, null, at)
+
+    t = nextTimer(t, stop(0), 18_000)
+    expect(t.phase).toBe('idle')
+    expect(t.time).toBeNull()
+  })
+
+  it('короткий пропуск финиша не отменяет — прибор молчит через раз штатно', () => {
+    let t = nextTimer(null, run(3000), 10_000)
+    t = nextTimer(t, null, 10_300)
+    t = nextTimer(t, stop(10270), 10_600)
+
+    expect(t.phase).toBe('finished')
+    expect(t.time).toBe('00:10.270')
   })
 
   it('пустое показание не трогает состояние и не обновляет метку', () => {
