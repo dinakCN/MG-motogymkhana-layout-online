@@ -349,6 +349,12 @@ export function clearStaleHighlight(state) {
   return true
 }
 
+// Участник занят кадром: он назначен текущим заездом или показан хайлайтом.
+// Сцену при этом не смотрим — от таблицы до заезда один клик, и участник,
+// вынутый из состава между этими двумя мгновениями, дал бы пустой кадр.
+const inFrame = (state, participantId) => participantId === state.currentRun?.participantId
+  || (Boolean(state.highlight?.visible) && participantId === state.highlight?.participantId)
+
 // Оператор, выводящий человека в кадр, тем самым утверждает, что тот
 // участвует, — сервер обязан это принять. Без снятия карточка приехавшего
 // позже спортсмена уехала бы в эфир пустой: времени у первой попытки ещё
@@ -508,6 +514,16 @@ export function applyCommand(state, message) {
       if (status === null) {
         delete state.riderStatus[payload.participantId]
         return true
+      }
+
+      // Того, кто занят кадром, отметить нельзя. Пока результата нет —
+      // а в первую попытку его и не бывает, — отметка вынула бы участника
+      // из состава сцен, и карточка в эфире погасла бы прямо во время
+      // заезда. Промах мышью по соседней строке списка не должен стоить
+      // кадра; снять отметку при этом можно всегда.
+      if (inFrame(state, payload.participantId)) {
+        console.warn(`[state] отметка «не явился» отклонена: ${payload.participantId} сейчас в кадре`)
+        return false
       }
 
       // Неизвестное значение означает, что пульт и сервер разошлись. Приняв

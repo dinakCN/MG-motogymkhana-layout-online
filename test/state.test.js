@@ -1165,6 +1165,53 @@ describe('отметка неявки', () => {
     expect(s.riderStatus['2']).toBeUndefined()
   })
 
+  // Промах мышью по соседней строке не должен стоить кадра: в первую попытку
+  // результата ещё нет, и отметка вынула бы участника из состава сцен —
+  // карточка погасла бы прямо во время заезда.
+  it('того, кто назначен заездом, отметить нельзя', () => {
+    const s = withRiders()
+    applyCommand(s, { type: 'setCurrentRun', payload: { participantId: '1' } })
+
+    expect(mark(s, '1')).toBe(false)
+    expect(s.riderStatus['1']).toBeUndefined()
+  })
+
+  it('того, кто в хайлайте, отметить нельзя', () => {
+    const s = withRiders()
+    applyCommand(s, { type: 'showHighlight', payload: { participantId: '2' } })
+
+    expect(mark(s, '2')).toBe(false)
+    expect(s.riderStatus['2']).toBeUndefined()
+  })
+
+  it('снятый хайлайт больше никого не держит', () => {
+    const s = withRiders()
+    applyCommand(s, { type: 'showHighlight', payload: { participantId: '2' } })
+    applyCommand(s, { type: 'hideHighlight' })
+
+    expect(mark(s, '2')).toBe(true)
+  })
+
+  // Запрет односторонний: он бережёт кадр от исчезновения, а не запрещает
+  // оператору передумать. Иначе ошибочная отметка держалась бы до смены заезда.
+  it('снять отметку можно и у того, кто в кадре', () => {
+    const s = withRiders()
+    mark(s, '1')
+    applyCommand(s, { type: 'setCurrentRun', payload: { participantId: '2' } })
+    applyCommand(s, { type: 'setCurrentRun', payload: { participantId: '1' } })
+
+    // вывод в кадр отметку уже снял, но команда на снятие обязана проходить
+    expect(mark(s, '1', null)).toBe(true)
+    expect(s.riderStatus['1']).toBeUndefined()
+  })
+
+  it('соседей текущий заезд не держит', () => {
+    const s = withRiders()
+    applyCommand(s, { type: 'setCurrentRun', payload: { participantId: '1' } })
+
+    expect(mark(s, '2')).toBe(true)
+  })
+
   it('снятие заезда с эфира чужих отметок не трогает', () => {
     const s = withRiders()
     mark(s, '1')

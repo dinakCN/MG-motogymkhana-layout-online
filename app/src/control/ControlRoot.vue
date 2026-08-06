@@ -34,6 +34,14 @@ const onAirId = computed(() => (state.value?.highlight?.visible
   ? state.value.highlight.participantId
   : state.value?.currentRun?.participantId) ?? null)
 
+// Кого кадр держит: назначенного заездом и показанного хайлайтом разом.
+// Отметить их сервер не даст — от таблицы до заезда один клик, и участник,
+// вынутый из состава между этими мгновениями, дал бы пустой кадр.
+const inFrameIds = computed(() => [
+  state.value?.currentRun?.participantId,
+  state.value?.highlight?.visible ? state.value.highlight.participantId : null,
+].filter(Boolean))
+
 // Превью всплывает на смену сцены — той же командой, которой оператор её
 // и переключил, откуда бы она ни пришла: кнопкой, клавишей или с другого
 // устройства в сети.
@@ -186,6 +194,7 @@ function hideHighlight() {
         :award-subject="state.award.subject"
         :selected-id="selected?.id ?? null"
         :on-air-id="onAirId"
+        :in-frame-ids="inFrameIds"
         :strict-groups="state.strictGroups ?? false"
         @pick="selected = $event"
         @group="send('setRiderGroup', $event)"

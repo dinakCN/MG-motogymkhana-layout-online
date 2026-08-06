@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useSocket } from '../useSocket.js'
-import { competing } from '../shared/riderStatus.js'
+import { sceneStateOf } from './sceneState.js'
 import ResultsScene from './ResultsScene.vue'
 import RunScene from './RunScene.vue'
 import HighlightScene from './HighlightScene.vue'
@@ -26,13 +26,9 @@ const SCENES = {
 const { state } = useSocket()
 const scene = computed(() => SCENES[state.value?.activeScene] ?? null)
 
-// Неявившихся вычитаем здесь и один раз на все сцены. Фильтровать в каждой
-// сцене отдельно нельзя: итоговая таблица, топ-3 в заезде и подиум считают
-// места по одному составу, и разъехавшись, они дали бы разные ответы
-// на вопрос «кто выиграл» — в день награждения это худшая из поломок.
-const sceneState = computed(() => (state.value
-  ? { ...state.value, participants: competing(state.value.participants, state.value.riderStatus) }
-  : null))
+// Сцены получают состав без тех, кто не приехал. Устройство и цена вопроса —
+// в sceneState.js, проверка раздельности зависимостей — в test/scene-state.test.js.
+const sceneState = sceneStateOf(state)
 
 // Превью в пульте идёт без перехода между сценами. Дело не в красоте:
 // Vue снимает классы перехода в следующем кадре анимации, а браузер

@@ -13,6 +13,7 @@ const props = defineProps({
   awardSubject: { type: String, default: null },
   selectedId: { type: String, default: null },
   onAirId: { type: String, default: null },
+  inFrameIds: { type: Array, default: () => [] },
   strictGroups: { type: Boolean, default: false },
 })
 const emit = defineEmits(['pick', 'group', 'status'])
@@ -128,6 +129,7 @@ defineExpose({ focusSearch: () => field.value?.focus() })
       :rider-groups="riderGroups"
       :selected-id="selectedId"
       :on-air-id="onAirId"
+      :in-frame-ids="inFrameIds"
       :strict-groups="strictGroups"
       @pick="emit('pick', $event)"
       @group="emit('group', $event)"

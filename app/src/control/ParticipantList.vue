@@ -11,6 +11,10 @@ const props = defineProps({
   riderGroups: { type: Object, default: () => ({}) },
   selectedId: { type: String, default: null },
   onAirId: { type: String, default: null },
+
+  // Кого держит кадр: текущий заезд и висящий хайлайт. Отметить их сервер
+  // не даст — кнопка гасится здесь, чтобы отказ не выглядел как поломка.
+  inFrameIds: { type: Array, default: () => [] },
   strictGroups: { type: Boolean, default: false },
 
   // Порядок, в котором приехал список, иногда важнее классов: состав группы
@@ -46,6 +50,11 @@ const isManual = rider => Array.isArray(props.riderGroups[rider.id])
 
 const marked = rider => props.riderStatus[rider.id] === DNS
 const away = rider => isNoShow(rider, props.riderStatus)
+
+// Кадр держит участника: отметить его сервер не даст, пока в эфир не уйдёт
+// другой. Пока результата нет — а в первую попытку его и не бывает, — отметка
+// вынула бы его из состава сцен, и карточка погасла бы прямо во время заезда.
+const held = rider => props.inFrameIds.includes(rider.id)
 
 // Отметка стоит, а время пришло: человек всё-таки проехал. Строку показываем
 // жёлтым, но из кадра его не убираем — протокол сильнее утренней отметки.
@@ -175,7 +184,10 @@ function onMenuToggle(event) {
         <button
           class="att"
           :class="{ off: marked(rider) }"
-          :title="marked(rider) ? 'отмечен неявившимся — вернуть в состав' : 'отметить: не приехал'"
+          :disabled="held(rider)"
+          :title="held(rider)
+            ? 'сейчас в кадре — сначала выведите другого'
+            : (marked(rider) ? 'отмечен неявившимся — вернуть в состав' : 'отметить: не приехал')"
           @click.stop="toggleStatus(rider)"
         >{{ marked(rider) ? '✕' : '✓' }}</button>
       </div>
@@ -400,7 +412,8 @@ function onMenuToggle(event) {
   transition: background 140ms ease, color 140ms ease;
 }
 
-.att:hover { background: rgba(255, 255, 255, 0.12); color: var(--ok); }
+.att:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); color: var(--ok); }
+.att:disabled { opacity: 0.3; cursor: not-allowed; }
 .att.off { color: var(--danger); border-color: rgba(255, 69, 58, 0.4); background: rgba(255, 69, 58, 0.12); }
 .att:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
