@@ -23,6 +23,12 @@ export const UNGROUPED = 'Вне групп'
 // (app/src/shared/awardGroups.js) — совпадение стережёт тест.
 export const PODIUM_PLACES = 3
 
+// Дублирует DNS из app/src/shared/riderStatus.js по той же причине, что и
+// UNGROUPED выше: сервер не импортирует клиентский код. Совпадение стережёт
+// тест — разъехавшись, сервер отвергал бы отметку явки, а пульт считал бы
+// её поставленной.
+export const RIDER_STATUSES = ['dns']
+
 export function createDefaultState() {
   return {
     eventTitle: 'Чемпионат Новосибирской области по мотоджимхане 2026',
@@ -82,6 +88,12 @@ export function createDefaultState() {
     // причине, что и overrides: participants перезаписываются целиком
     // каждые семь секунд.
     riderGroups: {},
+    // Явка: { participantId: 'dns' }. Часть заявленных не приезжает, и с сайта
+    // это не приходит — там у неприехавшего просто нет прокатов, ровно как
+    // у того, кто ещё не стартовал. Отличить их может только человек на
+    // площадке, поэтому отметку ставит оператор до начала заездов. Живёт
+    // рядом с riderGroups и по той же причине.
+    riderStatus: {},
     // Ручные правки живут отдельно от данных опроса и накладываются
     // поверх них после каждого успешного обновления. Иначе правка
     // стиралась бы следующим опросом через несколько секунд —
@@ -110,6 +122,17 @@ function normalizeRiderGroups(riderGroups) {
     // посчитала бы одного человека дважды.
     if (typeof value === 'string') out[id] = [value]
     else if (Array.isArray(value)) out[id] = [...new Set(value.filter(name => typeof name === 'string'))]
+  }
+  return out
+}
+
+// Значения явки, которых сервер не знает, отбрасываются при чтении файла:
+// он мог быть записан другой версией или поправлен руками. Мусор здесь тише
+// всего — отмеченный просто не исчезнет из кадра, и почему, не поймёт никто.
+function normalizeRiderStatus(riderStatus) {
+  const out = {}
+  for (const [id, value] of Object.entries(riderStatus ?? {})) {
+    if (RIDER_STATUSES.includes(value)) out[id] = value
   }
   return out
 }
@@ -186,7 +209,7 @@ export function applyParticipants(state, participants) {
   if (!Array.isArray(participants)) return false
   if (participants.length === 0 && state.participants.length > 0) return false
 
-  rehomeRiderGroups(state, participants)
+  rehomeManualMarks(state, participants)
   state.participants = participants
   state.lastSuccessfulPoll = Date.now()
   applyOverrides(state)
@@ -195,33 +218,39 @@ export function applyParticipants(state, participants) {
 
 // Идентификатор участника не вечен: у безномерных он собран из ФИО, и как
 // только организатор привяжет профиль, id станет числом. Такие правки
-// делают по ходу дня — а группу вручную набирают как раз тем, у кого
-// профиля нет. Без переноса пометка молча осиротела бы за час до
-// церемонии, и человек уехал бы не в свой зачёт.
+// делают по ходу дня — а руками помечают как раз тех, у кого профиля нет.
+// Без переноса пометка молча осиротела бы за час до церемонии: человек уехал
+// бы не в свой зачёт, а неявившийся вернулся бы в кадр.
 //
 // Переносим только при однозначном совпадении ФИО: два тёзки в протоколе —
 // повод не трогать ничего, ошибиться здесь дороже, чем оставить как есть.
-function rehomeRiderGroups(state, next) {
+function rehomeManualMarks(state, next) {
   const byId = new Map(state.participants.map(p => [p.id, p]))
   const arrived = new Set(next.map(p => p.id))
 
   const fioCount = new Map()
   for (const p of next) fioCount.set(p.fio, (fioCount.get(p.fio) ?? 0) + 1)
 
-  for (const [id, groups] of Object.entries(state.riderGroups ?? {})) {
-    if (arrived.has(id)) continue
+  const heirOf = (id) => {
+    if (arrived.has(id)) return null
 
     const fio = byId.get(id)?.fio
-    if (!fio || fioCount.get(fio) !== 1) continue
+    if (!fio || fioCount.get(fio) !== 1) return null
 
-    const heir = next.find(p => p.fio === fio)
-    // Своя пометка у наследника важнее: совпадение ФИО не повод
-    // перекладывать на него чужую.
-    if (!heir || state.riderGroups[heir.id]) continue
+    return next.find(p => p.fio === fio) ?? null
+  }
 
-    state.riderGroups[heir.id] = groups
-    delete state.riderGroups[id]
-    console.log(`[state] пометка групп перенесена: ${id} → ${heir.id} (${fio})`)
+  for (const [what, marks] of [['групп', state.riderGroups], ['явки', state.riderStatus]]) {
+    for (const [id, value] of Object.entries(marks ?? {})) {
+      const heir = heirOf(id)
+      // Своя пометка у наследника важнее: совпадение ФИО не повод
+      // перекладывать на него чужую.
+      if (!heir || marks[heir.id] !== undefined) continue
+
+      marks[heir.id] = value
+      delete marks[id]
+      console.log(`[state] пометка ${what} перенесена: ${id} → ${heir.id} (${heir.fio})`)
+    }
   }
 }
 
@@ -320,6 +349,17 @@ export function clearStaleHighlight(state) {
   return true
 }
 
+// Оператор, выводящий человека в кадр, тем самым утверждает, что тот
+// участвует, — сервер обязан это принять. Без снятия карточка приехавшего
+// позже спортсмена уехала бы в эфир пустой: времени у первой попытки ещё
+// нет, а для сцен отмеченный участник не существует.
+function clearNoShow(state, participantId) {
+  if (!participantId || !state.riderStatus?.[participantId]) return
+
+  delete state.riderStatus[participantId]
+  console.log(`[state] отметка «не явился» снята: ${participantId} вышел в кадр`)
+}
+
 export function applyCommand(state, message) {
   const { type, payload } = message || {}
 
@@ -361,6 +401,8 @@ export function applyCommand(state, message) {
       // финишное время предыдущего спортсмена подписалось бы под именем
       // следующего — ошибка, которую в эфире не отличить от правды.
       if (!sameRun) state.timer = null
+
+      clearNoShow(state, participantId)
       return true
     }
 
@@ -379,6 +421,7 @@ export function applyCommand(state, message) {
     }
 
     case 'showHighlight':
+      clearNoShow(state, payload?.participantId)
       state.highlight = {
         participantId: payload?.participantId ?? null,
         caption: payload?.caption ?? '',
@@ -448,6 +491,31 @@ export function applyCommand(state, message) {
       state.riderGroups[payload.participantId] = known
         .filter(g => unique.includes(g.name))
         .map(g => g.name)
+      return true
+    }
+
+    // Явка. С сайта она не приходит: у неприехавшего просто нет прокатов,
+    // как и у того, кто ещё не стартовал, — различить их может только
+    // человек на площадке.
+    case 'setRiderStatus': {
+      const p = state.participants.find(x => x.id === payload?.participantId)
+      if (!p) return false
+
+      const status = payload?.status ?? null
+
+      // Пустое значение снимает отметку: ошибочная явка иначе была бы
+      // необратимой, а ставят её утром и по бумажному списку.
+      if (status === null) {
+        delete state.riderStatus[payload.participantId]
+        return true
+      }
+
+      // Неизвестное значение означает, что пульт и сервер разошлись. Приняв
+      // его, сервер завёл бы статус, которого не понимает ни один потребитель:
+      // человек остался бы в кадре, а пульт показывал бы его снятым.
+      if (!RIDER_STATUSES.includes(status)) return false
+
+      state.riderStatus[payload.participantId] = status
       return true
     }
 
@@ -556,6 +624,7 @@ export function readStateFile(path) {
   }
 
   state.riderGroups = normalizeRiderGroups(state.riderGroups)
+  state.riderStatus = normalizeRiderStatus(state.riderStatus)
   return { state, restored: true }
 }
 

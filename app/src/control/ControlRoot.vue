@@ -1,9 +1,10 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useSocket } from '../useSocket.js'
+import { competing } from '../shared/riderStatus.js'
 import StatusBar from './StatusBar.vue'
 import SceneTabs from './SceneTabs.vue'
-import ParticipantList from './ParticipantList.vue'
+import ParticipantsPanel from './ParticipantsPanel.vue'
 import RunBlock from './RunBlock.vue'
 import RoundBlock from './RoundBlock.vue'
 import ResultsBlock from './ResultsBlock.vue'
@@ -15,12 +16,30 @@ import './control.css'
 
 const { state, connected, send } = useSocket()
 
-const query = ref('')
-const onlyGroup = ref(false)
 const selected = ref(null)
 const runBlock = ref(null)
+const preview = ref(null)
 
 const participants = computed(() => state.value?.participants ?? [])
+
+// Блоки «Таблица» и «Награждение» показывают то, что получится в кадре,
+// поэтому неявившихся они не считают — иначе пульт обещал бы одно, а сцена
+// показывала другое. Список рядом, наоборот, знает весь состав: отметку
+// надо уметь снять, а человек может доехать к третьему классу.
+const onAir = computed(() => competing(participants.value, state.value?.riderStatus ?? {}))
+
+// Кто сейчас в кадре: заезд, а пока висит хайлайт — райдер хайлайта.
+// Состояние уже знает это, списку остаётся показать точкой.
+const onAirId = computed(() => (state.value?.highlight?.visible
+  ? state.value.highlight.participantId
+  : state.value?.currentRun?.participantId) ?? null)
+
+// Превью всплывает на смену сцены — той же командой, которой оператор её
+// и переключил, откуда бы она ни пришла: кнопкой, клавишей или с другого
+// устройства в сети.
+watch(() => state.value?.activeScene, (scene, was) => {
+  if (scene && was && scene !== was) preview.value?.flash()
+})
 
 const HOTKEYS = {
   1: 'results', 2: 'run', 3: 'highlight', 4: 'break', 5: 'award', 6: 'idle', 7: 'clean',
@@ -38,9 +57,9 @@ function onKey(event) {
   const inField = ['INPUT', 'SELECT', 'TEXTAREA'].includes(event.target.tagName)
 
   if (event.key === 'Escape') {
-    // Открытое меню групп закрывает сам браузер, но событие всё равно
-    // всплывает сюда. Без этой проверки оператор, закрывая меню, заодно
-    // гасил бы хайлайт в эфире.
+    // Открытую плашку — меню групп или превью кадра — закрывает сам браузер,
+    // но событие всё равно всплывает сюда. Без этой проверки оператор,
+    // закрывая её, заодно гасил бы хайлайт в эфире.
     if (document.querySelector('[popover]:popover-open')) return
 
     event.target.blur?.()
@@ -140,13 +159,13 @@ function hideHighlight() {
         <RoundBlock :round="state.round" @change="send('setRound', $event)" />
         <ResultsBlock
           :by-group="state.resultsByGroup ?? false"
-          :participants="participants"
+          :participants="onAir"
           :award-groups="state.awardGroups ?? []"
           :rider-groups="state.riderGroups ?? {}"
           @option="send('setSceneOption', $event)"
         />
         <AwardBlock
-          :participants="participants"
+          :participants="onAir"
           :award="state.award"
           :award-groups="state.awardGroups ?? []"
           :rider-groups="state.riderGroups ?? {}"
@@ -156,33 +175,25 @@ function hideHighlight() {
         <OverrideBlock :rider="selected" @override="send('manualOverride', $event)" />
       </div>
 
-      <div class="right">
-        <OverlayPreview />
-
-        <div class="panel search-panel">
-          <h3>Участники · {{ participants.length }}</h3>
-          <input v-model="query" class="input" placeholder="поиск: ФИО, номер, класс, город" />
-          <label class="check">
-            <input v-model="onlyGroup" type="checkbox" :disabled="!state.award.subject" />
-            только группа награждения
-          </label>
-        </div>
-
-        <div class="panel list-panel">
-          <ParticipantList
-            :participants="participants"
-            :query="query"
-            :selected-id="selected?.id ?? null"
-            :award-groups="state.awardGroups ?? []"
-            :rider-groups="state.riderGroups ?? {}"
-            :group-filter="onlyGroup ? state.award.subject : null"
-            :strict-groups="state.strictGroups ?? false"
-            @pick="selected = $event"
-            @group="send('setRiderGroup', $event)"
-          />
-        </div>
-      </div>
+      <!-- Правая колонка отдана списку целиком. Раньше её делили превью
+           кадра и панель поиска, и списку доставалось шесть строк из
+           двадцати с лишним участников. -->
+      <ParticipantsPanel
+        :participants="participants"
+        :rider-status="state.riderStatus ?? {}"
+        :award-groups="state.awardGroups ?? []"
+        :rider-groups="state.riderGroups ?? {}"
+        :award-subject="state.award.subject"
+        :selected-id="selected?.id ?? null"
+        :on-air-id="onAirId"
+        :strict-groups="state.strictGroups ?? false"
+        @pick="selected = $event"
+        @group="send('setRiderGroup', $event)"
+        @status="send('setRiderStatus', $event)"
+      />
     </div>
+
+    <OverlayPreview ref="preview" />
   </div>
 
   <div v-else class="control loading">Подключаемся к серверу…</div>
@@ -197,11 +208,7 @@ function hideHighlight() {
   overflow: hidden;
 }
 
-.left, .right { display: flex; flex-direction: column; gap: 14px; overflow: hidden; }
-.left { overflow-y: auto; padding-right: 2px; }
-.search-panel { flex: none; }
-.list-panel { padding: 0; flex: 1; overflow: hidden; }
-.check { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-top: 8px; cursor: pointer; color: var(--ink-dim); }
+.left { display: flex; flex-direction: column; gap: 14px; overflow-y: auto; padding-right: 2px; }
 
 .loading {
   display: flex;

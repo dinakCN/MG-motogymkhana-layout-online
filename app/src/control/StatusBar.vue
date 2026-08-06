@@ -2,11 +2,17 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { secondsSince } from '../shared/format.js'
 import { roundText } from '../shared/rounds.js'
+import { countsOf } from '../shared/riderStatus.js'
 
 const props = defineProps({
   state: { type: Object, required: true },
   connected: { type: Boolean, required: true },
 })
+
+// В строке состояния стоит число едущих, а не заявленных: именно столько
+// строк уедет в итоговую таблицу. Заявленных дописываем рядом, когда есть
+// неявки, — иначе счётчик молча разошёлся бы с протоколом на руках у судьи.
+const counts = computed(() => countsOf(props.state.participants, props.state.riderStatus))
 
 const now = ref(Date.now())
 let timer = null
@@ -67,10 +73,18 @@ const timerLabel = computed(() => {
     </span>
 
     <span class="sep">·</span>
-    <span>участников: {{ state.participants.length }}</span>
+    <span>
+      участников: {{ counts.competing }}<template v-if="counts.noShow"> из {{ counts.declared }}</template>
+    </span>
 
     <span class="sep">·</span>
     <span>момент: {{ roundText(state.round).label }}</span>
+
+    <!-- Превью кадра вызывается отсюда, а не занимает панель в правой
+         колонке: смотрят в него при переключении сцены, и 340 px постоянной
+         высоты оно не стоит. Оно же всплывает само на две секунды при каждой
+         смене сцены — ровно тогда, когда в кадр надо заглянуть. -->
+    <button class="frame" popovertarget="frame-preview">▸ кадр</button>
   </div>
 </template>
 
@@ -105,6 +119,25 @@ const timerLabel = computed(() => {
 
 .sep { color: var(--ink-faint); }
 .warn { color: var(--danger); font-weight: 640; }
+
+/* Якорь для превью: плашка кадра встаёт под этой кнопкой, а не в середине
+   экрана. Имя объявлено здесь, у кнопки, и читается в OverlayPreview. */
+.frame {
+  margin-left: auto;
+  anchor-name: --frame-chip;
+  padding: 5px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+.frame:hover { background: rgba(255, 255, 255, 0.16); }
+.frame:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* Не боевой этап — единственное, что подсвечивается в этой строке:
      провести эфир на данных полигона — самая обидная ошибка дня. */

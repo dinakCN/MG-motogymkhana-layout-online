@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { rmSync, writeFileSync, readFileSync, mkdirSync, existsSync } from 'node:fs'
 import { bestOf } from '../app/src/shared/format.js'
 import { UNGROUPED, podiumOf } from '../app/src/shared/awardGroups.js'
-import { createDefaultState, applyParticipants, applyCommand, saveState, loadState, normalizeOverride, syncAwardSubject, syncTrackScene, clearStaleHighlight, applyServerConfig, UNGROUPED as SERVER_UNGROUPED, PODIUM_PLACES } from '../server/state.js'
+import { DNS } from '../app/src/shared/riderStatus.js'
+import { createDefaultState, applyParticipants, applyCommand, saveState, loadState, normalizeOverride, syncAwardSubject, syncTrackScene, clearStaleHighlight, applyServerConfig, UNGROUPED as SERVER_UNGROUPED, PODIUM_PLACES, RIDER_STATUSES } from '../server/state.js'
 
 const rider = (id, fio) => ({
   id, athleteId: id, sportClass: 'C3', classColor: 'green', number: 28,
@@ -803,6 +804,14 @@ describe('UNGROUPED', () => {
   })
 })
 
+describe('список статусов явки', () => {
+  // Разъехавшись, списки дали бы худшее: пульт показывает человека снятым,
+  // сервер отметку не принял, а в кадре он едет.
+  it('знает статус клиента', () => {
+    expect(RIDER_STATUSES).toContain(DNS)
+  })
+})
+
 describe('состояние награждения по группам', () => {
   it('стартует без выбранной группы', () => {
     const s = createDefaultState()
@@ -1056,5 +1065,141 @@ describe('syncTrackScene', () => {
 
     expect(syncTrackScene(s)).toBe(false)
     expect(s.activeScene).toBe('award')
+  })
+})
+
+describe('отметка неявки', () => {
+  const withRiders = () => {
+    const s = createDefaultState()
+    applyParticipants(s, [rider('1', 'Болдов Иван'), rider('2', 'Петров Илья')])
+    return s
+  }
+
+  const mark = (s, participantId, status = DNS) =>
+    applyCommand(s, { type: 'setRiderStatus', payload: { participantId, status } })
+
+  it('ставится и снимается', () => {
+    const s = withRiders()
+
+    expect(mark(s, '1')).toBe(true)
+    expect(s.riderStatus['1']).toBe(DNS)
+
+    expect(mark(s, '1', null)).toBe(true)
+    expect(s.riderStatus['1']).toBeUndefined()
+  })
+
+  it('пустого состояния хватает: по умолчанию отметок нет', () => {
+    expect(createDefaultState().riderStatus).toEqual({})
+  })
+
+  it('участника нет в составе — команда отвергается', () => {
+    const s = withRiders()
+    expect(mark(s, '99')).toBe(false)
+    expect(s.riderStatus['99']).toBeUndefined()
+  })
+
+  // Неизвестное значение означает, что пульт и сервер разошлись. Приняв его,
+  // сервер завёл бы статус, которого не понимает ни один потребитель, —
+  // человек остался бы в кадре, а пульт показывал бы его снятым.
+  it('неизвестный статус отвергается', () => {
+    const s = withRiders()
+    expect(applyCommand(s, { type: 'setRiderStatus', payload: { participantId: '1', status: 'dq' } })).toBe(false)
+    expect(s.riderStatus['1']).toBeUndefined()
+  })
+
+  it('отметка переживает опрос сайта', () => {
+    const s = withRiders()
+    mark(s, '1')
+
+    applyParticipants(s, [rider('1', 'Болдов Иван'), rider('2', 'Петров Илья')])
+
+    expect(s.riderStatus['1']).toBe(DNS)
+  })
+
+  // Тот же случай, что с пометкой групп: у безномерного id собран из ФИО и
+  // меняется, как только организатор привяжет профиль. Осиротевшая отметка
+  // молча вернула бы человека в кадр.
+  it('переезжает на новый id вместе с пометкой групп', () => {
+    const s = createDefaultState()
+    applyParticipants(s, [{ ...rider('anon-x', 'Полухин Никита'), id: 'anon-x' }])
+    mark(s, 'anon-x')
+
+    applyParticipants(s, [{ ...rider('9999', 'Полухин Никита'), id: '9999' }])
+
+    expect(s.riderStatus['9999']).toBe(DNS)
+    expect(s.riderStatus['anon-x']).toBeUndefined()
+  })
+
+  it('к тёзке отметка не переезжает', () => {
+    const s = createDefaultState()
+    applyParticipants(s, [{ ...rider('anon-x', 'Иванов Иван'), id: 'anon-x' }])
+    mark(s, 'anon-x')
+
+    applyParticipants(s, [
+      { ...rider('11', 'Иванов Иван'), id: '11' },
+      { ...rider('22', 'Иванов Иван'), id: '22' },
+    ])
+
+    expect(s.riderStatus['11']).toBeUndefined()
+    expect(s.riderStatus['22']).toBeUndefined()
+  })
+
+  // Оператор, выводящий человека в эфир, тем самым утверждает, что тот
+  // участвует. Без снятия отметки карточка уехала бы в кадр пустой: времени
+  // у первой попытки ещё нет, и участник для сцен не существует.
+  it('вывод заезда в эфир снимает отметку', () => {
+    const s = withRiders()
+    mark(s, '1')
+
+    applyCommand(s, { type: 'setCurrentRun', payload: { participantId: '1', attemptLabel: 'Попытка 1' } })
+
+    expect(s.riderStatus['1']).toBeUndefined()
+  })
+
+  it('хайлайт снимает отметку так же', () => {
+    const s = withRiders()
+    mark(s, '2')
+
+    applyCommand(s, { type: 'showHighlight', payload: { participantId: '2', caption: 'Лучшее время дня' } })
+
+    expect(s.riderStatus['2']).toBeUndefined()
+  })
+
+  it('снятие заезда с эфира чужих отметок не трогает', () => {
+    const s = withRiders()
+    mark(s, '1')
+
+    applyCommand(s, { type: 'setCurrentRun', payload: { participantId: null } })
+
+    expect(s.riderStatus['1']).toBe(DNS)
+  })
+
+  it('поднимается из файла состояния', () => {
+    const dir = 'test/tmp'
+    mkdirSync(dir, { recursive: true })
+    const path = `${dir}/status-state.json`
+
+    const s = withRiders()
+    mark(s, '1')
+    saveState(s, path)
+
+    expect(loadState(path).riderStatus).toEqual({ 1: DNS })
+    rmSync(path, { force: true })
+  })
+
+  // Файл мог быть записан версией, которая знала другие значения, или
+  // отредактирован руками. Мусор в статусе тише всего: человек просто
+  // не исчезнет из кадра, и никто не поймёт, почему отметка не работает.
+  it('мусор из файла состояния отбрасывается', () => {
+    const dir = 'test/tmp'
+    mkdirSync(dir, { recursive: true })
+    const path = `${dir}/status-broken.json`
+
+    const s = withRiders()
+    s.riderStatus = { 1: DNS, 2: 'dq', 3: true, 4: null }
+    saveState(s, path)
+
+    expect(loadState(path).riderStatus).toEqual({ 1: DNS })
+    rmSync(path, { force: true })
   })
 })
