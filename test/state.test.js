@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { rmSync, writeFileSync } from 'node:fs'
+import { rmSync, writeFileSync, readFileSync, mkdirSync, existsSync } from 'node:fs'
 import { bestOf } from '../app/src/shared/format.js'
 import { UNGROUPED, podiumOf } from '../app/src/shared/awardGroups.js'
-import { createDefaultState, applyParticipants, applyCommand, saveState, loadState, normalizeOverride, syncAwardSubject, UNGROUPED as SERVER_UNGROUPED, PODIUM_PLACES } from '../server/state.js'
+import { createDefaultState, applyParticipants, applyCommand, saveState, loadState, normalizeOverride, syncAwardSubject, clearStaleHighlight, applyServerConfig, UNGROUPED as SERVER_UNGROUPED, PODIUM_PLACES } from '../server/state.js'
 
 const rider = (id, fio) => ({
   id, athleteId: id, sportClass: 'C3', classColor: 'green', number: 28,
@@ -362,6 +362,52 @@ describe('сохранение и загрузка', () => {
     writeFileSync(bad, '{сломано')
     expect(loadState(bad).activeScene).toBe('results')
     rmSync(bad, { force: true })
+    rmSync(`${bad}.broken`, { force: true })
+  })
+
+  // Файл состояния переписывается несколько тысяч раз за день эфира — после
+  // каждой команды пульта и каждого удачного опроса. Обрыв ровно в момент
+  // записи (крышка, разряд, kill) оставил бы половину JSON, и всё, что
+  // оператор наработал за день, — правки и пометки групп — молча пропало бы.
+  it('не трогает сохранённое состояние, если новая запись не удалась', () => {
+    const path = 'test/tmp-atomic.json'
+    // Упавший прогон оставляет папку-заглушку ниже; она сорвала бы и запись
+    // первого состояния, и весь смысл проверки.
+    rmSync(`${path}.tmp`, { recursive: true, force: true })
+
+    const first = createDefaultState()
+    applyCommand(first, { type: 'setActiveScene', payload: 'award' })
+    saveState(first, path)
+
+    // Занимаем путь временного файла папкой: записать в неё нельзя,
+    // и это единственный способ увидеть сбой записи в тесте.
+    mkdirSync(`${path}.tmp`, { recursive: true })
+
+    const second = createDefaultState()
+    applyCommand(second, { type: 'setActiveScene', payload: 'run' })
+    saveState(second, path)
+
+    expect(loadState(path).activeScene).toBe('award')
+
+    rmSync(`${path}.tmp`, { recursive: true, force: true })
+    rmSync(path, { force: true })
+  })
+
+  it('битый файл откладывает рядом — правки дня можно достать руками', () => {
+    const bad = 'test/tmp-broken.json'
+    writeFileSync(bad, '{"activeScene":"award","participants":[{"id":"1"')
+
+    loadState(bad)
+
+    expect(readFileSync(`${bad}.broken`, 'utf-8')).toContain('"activeScene":"award"')
+
+    rmSync(`${bad}.broken`, { force: true })
+    rmSync(bad, { force: true })
+  })
+
+  it('на отсутствующем файле копию не заводит — первый запуск не авария', () => {
+    loadState('test/нет-такого.json')
+    expect(existsSync('test/нет-такого.json.broken')).toBe(false)
   })
 
   it('добирает поля, которых не было в файле прошлой версии', () => {
@@ -625,6 +671,118 @@ describe('syncAwardSubject', () => {
 
     expect(syncAwardSubject(s)).toBe(false)
     expect(s.award.subject).toBe(UNGROUPED)
+  })
+})
+
+// Настройки этапа приезжают в состояние при старте сервера. Часть из них —
+// оформление и состав групп — принадлежит файлу этапа всегда. Тумблеры кадра
+// принадлежат оператору: он переключает их из пульта по ходу дня.
+describe('применение настроек этапа при старте', () => {
+  const stageConfig = {
+    stageId: '677', liveStageId: '677', eventTitle: 'Этап из файла',
+    logoUrl: '/assets/logo.png', logoMarkUrl: '/assets/logo-mark.png',
+    highlightTimeout: 6000, showRunTime: true, showClassTop: true,
+    resultsByGroup: false, awardGroups: [{ name: 'Любители', classes: ['D2'] }],
+    strictGroups: true, timerUrl: null, sceneOptionsFromEnv: [],
+  }
+
+  it('этап и оформление всегда из файла — иначе репетиция утекла бы в эфир', () => {
+    const s = createDefaultState()
+    s.stageId = '670'
+    s.eventTitle = 'Прошлогоднее название'
+
+    applyServerConfig(s, stageConfig, { restored: true })
+    expect(s.stageId).toBe('677')
+    expect(s.eventTitle).toBe('Этап из файла')
+    expect(s.awardGroups).toHaveLength(1)
+  })
+
+  // К концу дня в кадре обычно таблица по группам: по ней вручают медали.
+  // Перезапуск сервера в разгар награждения молча вернул бы разрез по классам.
+  it('разрез таблицы, выбранный оператором, переживает перезапуск', () => {
+    const s = createDefaultState()
+    applyCommand(s, { type: 'setSceneOption', payload: { option: 'resultsByGroup', value: true } })
+
+    applyServerConfig(s, stageConfig, { restored: true })
+    expect(s.resultsByGroup).toBe(true)
+  })
+
+  it('названный в командной строке тумблер сильнее выбора оператора', () => {
+    const s = createDefaultState()
+    applyCommand(s, { type: 'setSceneOption', payload: { option: 'resultsByGroup', value: true } })
+
+    applyServerConfig(s, { ...stageConfig, sceneOptionsFromEnv: ['resultsByGroup'] }, { restored: true })
+    expect(s.resultsByGroup).toBe(false)
+  })
+
+  it('на первом запуске этапа тумблеры берутся из файла', () => {
+    const s = createDefaultState()
+    s.resultsByGroup = true
+
+    applyServerConfig(s, stageConfig, { restored: false })
+    expect(s.resultsByGroup).toBe(false)
+  })
+
+  // Показания эфемерны: сервер, поднятый посреди дня, видит на табло прибора
+  // прошлый результат — и обязан считать это покоем.
+  it('показания таймера с диска не поднимаются', () => {
+    const s = createDefaultState()
+    s.timer = { phase: 'finished', startedAt: 1, time: '00:19.718', updatedAt: 2 }
+
+    applyServerConfig(s, stageConfig, { restored: true })
+    expect(s.timer).toBe(null)
+  })
+
+  it('связь с прибором проверяется заново, а не поднимается с диска', () => {
+    const s = createDefaultState()
+    s.timerLink = { online: true, seenAt: 1000 }
+
+    applyServerConfig(s, stageConfig, { restored: true })
+    expect(s.timerLink).toBe(null)
+  })
+
+  // Пульту нужно отличать «прибора нет по замыслу» от «прибор пропал»:
+  // на этапе без таймера молчание прибора — не повод тревожить оператора.
+  it('сообщает пульту, задан ли прибор на этом этапе', () => {
+    const without = createDefaultState()
+    applyServerConfig(without, stageConfig, { restored: false })
+    expect(without.timerConfigured).toBe(false)
+
+    const with_ = createDefaultState()
+    applyServerConfig(with_, { ...stageConfig, timerUrl: 'http://192.168.1.97/laptime' }, { restored: false })
+    expect(with_.timerConfigured).toBe(true)
+  })
+})
+
+// Нижняя треть — вставка на несколько секунд, и снимает её страховочный
+// таймер сервера (server/index.js). Таймер заводится командой пульта, а
+// после падения команды не было: поднятый сервер вернул бы хайлайт в кадр
+// и оставил бы его там до конца дня.
+describe('хайлайт, переживший падение сервера', () => {
+  it('снимается при подъёме', () => {
+    const s = createDefaultState()
+    applyCommand(s, { type: 'showHighlight', payload: { participantId: '1', caption: 'Лучшее время дня' } })
+
+    expect(clearStaleHighlight(s)).toBe(true)
+    expect(s.highlight.visible).toBe(false)
+  })
+
+  it('возвращает кадр туда, откуда его вызывали', () => {
+    const s = createDefaultState()
+    applyCommand(s, { type: 'setActiveScene', payload: 'run' })
+    applyCommand(s, { type: 'showHighlight', payload: { participantId: '1' } })
+    applyCommand(s, { type: 'setActiveScene', payload: 'highlight' })
+
+    clearStaleHighlight(s)
+    expect(s.activeScene).toBe('run')
+  })
+
+  it('состояние без хайлайта не трогает', () => {
+    const s = createDefaultState()
+    applyCommand(s, { type: 'setActiveScene', payload: 'award' })
+
+    expect(clearStaleHighlight(s)).toBe(false)
+    expect(s.activeScene).toBe('award')
   })
 })
 

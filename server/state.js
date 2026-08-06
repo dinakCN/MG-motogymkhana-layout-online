@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync, renameSync, copyFileSync } from 'node:fs'
 
 // idle — тихая заставка: логотип и ничего больше. В отличие от break
 // она ничего не заявляет и не привязана к раунду, поэтому её можно
@@ -47,10 +47,18 @@ export function createDefaultState() {
     // ему нельзя. Пометка ничего не решает в зачёте — она только запрещает
     // показ, как тумблер, но точечно.
     currentRun: { participantId: null, attemptLabel: 'Попытка 1', caption: '', dnf: false },
-    // Показания таймера со второго ноутбука. Заполняет мост, когда его
-    // поднимут; до тех пор здесь null, и зона времени показывает в кадре
-    // время первой попытки вместо живого отсчёта.
+    // Показания таймера с прибора на трассе. Пока прибора нет, здесь null,
+    // и зона времени показывает в кадре время первой попытки вместо
+    // живого отсчёта.
     timer: null,
+    // Связь с прибором: { online, seenAt } или null, пока не опрашивали.
+    // Ведётся отдельно от показаний (server/timer.js) — прибор может уехать
+    // из сети посреди дня, и оператор обязан узнать об этом из пульта,
+    // а не по пропавшим цифрам в кадре.
+    timerLink: null,
+    // Задан ли прибор на этом этапе. Без него пульт не отличил бы
+    // «прибора нет по замыслу» от «прибор пропал».
+    timerConfigured: false,
     // returnScene живёт в состоянии, а не в пульте: перезагруженная вкладка
     // пульта не должна забыть, куда возвращать кадр после хайлайта.
     highlight: { participantId: null, caption: '', visible: false, returnScene: 'results' },
@@ -225,6 +233,72 @@ export function syncAwardSubject(state) {
   return true
 }
 
+// Тумблеры кадра: ими распоряжаются и команда пульта ('setSceneOption'),
+// и настройки этапа при старте — одни и те же поля состояния.
+const SCENE_OPTIONS = ['showRunTime', 'showClassTop', 'resultsByGroup']
+
+// Настройки этапа приезжают в состояние при старте сервера: иначе они
+// существовали бы только в event.config.js и ни на что не влияли.
+//
+// Этап и оформление принадлежат файлу этапа всегда — сохранённое значение
+// затирается. Иначе после репетиции на полигоне в пульте показывался бы
+// этап из файла состояния, а данные шли бы с боевого.
+//
+// Тумблеры кадра — наоборот, принадлежат оператору: он переключает их из
+// пульта по ходу дня. К концу дня в кадре обычно таблица по группам, по ней
+// вручают медали, — и перезапуск сервера в разгар награждения не должен
+// молча возвращать разрез по классам. Файл этапа задаёт лишь то, с чего
+// день начнётся; перебить выбор оператора можно, назвав тумблер прямо
+// в командной строке.
+export function applyServerConfig(state, config, { restored } = {}) {
+  state.stageId = config.stageId
+  state.eventTitle = config.eventTitle
+  state.logoUrl = config.logoUrl
+  state.logoMarkUrl = config.logoMarkUrl
+  state.liveStageId = config.liveStageId
+  state.highlightTimeout = config.highlightTimeout
+  state.awardGroups = config.awardGroups
+  state.strictGroups = config.strictGroups
+
+  for (const option of SCENE_OPTIONS) {
+    const named = config.sceneOptionsFromEnv?.includes(option)
+    if (!restored || named) {
+      state[option] = config[option]
+    } else if (state[option] !== config[option]) {
+      // Расхождение с файлом этапа — обычно след дневной работы пульта.
+      // Сказать стоит: иначе оператор гадал бы, почему кадр не такой,
+      // как записано в event.config.js.
+      console.log(`[state] тумблер ${option} поднят из состояния: ${state[option]} (в файле этапа ${config[option]})`)
+    }
+  }
+
+  // Показания таймера эфемерны и с диска не поднимаются. Сервер, поднятый
+  // посреди дня, видит на табло прибора прошлый результат — и обязан считать
+  // это покоем, иначе чужое время подпишется под текущим спортсменом.
+  state.timer = null
+
+  // Связь с прибором проверяется заново первым же опросом: за время, пока
+  // сервер лежал, прибор могли унести с трассы.
+  state.timerLink = null
+  state.timerConfigured = Boolean(config.timerUrl)
+}
+
+// Хайлайт в поднятом состоянии — след падения, а не намерение оператора:
+// нижнюю треть показывают на несколько секунд, и снимает её страховочный
+// таймер сервера. Таймер заводится командой пульта, а после падения команды
+// не было — вставка осталась бы в кадре до конца дня.
+// Возвращает true, если пришлось снимать.
+export function clearStaleHighlight(state) {
+  if (!state.highlight?.visible) return false
+
+  console.warn('[state] хайлайт остался от прошлого запуска — снят')
+  state.highlight = { ...state.highlight, visible: false }
+  if (state.activeScene === 'highlight') {
+    state.activeScene = state.highlight.returnScene ?? 'results'
+  }
+  return true
+}
+
 export function applyCommand(state, message) {
   const { type, payload } = message || {}
 
@@ -273,8 +347,7 @@ export function applyCommand(state, message) {
       return true
 
     case 'setSceneOption': {
-      const OPTIONS = ['showRunTime', 'showClassTop', 'resultsByGroup']
-      if (!OPTIONS.includes(payload?.option)) return false
+      if (!SCENE_OPTIONS.includes(payload?.option)) return false
 
       state[payload.option] = Boolean(payload.value)
       return true
@@ -397,9 +470,17 @@ export function applyCommand(state, message) {
   }
 }
 
+// Пишем рядом и переставляем именем. Файл переписывается тысячи раз за день:
+// после каждой команды пульта и каждого удачного опроса. Записи прямо в
+// боевой файл хватило бы одного обрыва в неудачный момент — крышка, разряд,
+// kill, — чтобы на диске осталась половина JSON, а с ней пропали правки и
+// пометки групп за весь день. rename в пределах одной папки атомарен: на
+// диске в любой момент лежит либо прошлое состояние целиком, либо новое.
 export function saveState(state, path) {
+  const tmp = `${path}.tmp`
   try {
-    writeFileSync(path, JSON.stringify(state, null, 2), 'utf-8')
+    writeFileSync(tmp, JSON.stringify(state, null, 2), 'utf-8')
+    renameSync(tmp, path)
   } catch (err) {
     console.error('[state] не удалось сохранить:', err.message)
   }
@@ -408,12 +489,34 @@ export function saveState(state, path) {
 // Вложенные объекты сливаются по полям, а не заменяются целиком: state.json
 // мог быть записан прошлой версией, где какого-то поля ещё не было, —
 // и в эфир ушло бы состояние с дырой вместо значения по умолчанию.
-export function loadState(path) {
+//
+// Возвращает ещё и признак восстановления: поднятое с диска состояние
+// сервер уважает больше, чем настройки из файла этапа (server/index.js).
+export function readStateFile(path) {
+  let raw
+  try {
+    raw = readFileSync(path, 'utf-8')
+  } catch {
+    // Файла нет — обычный первый запуск этапа, а не поломка.
+    return { state: createDefaultState(), restored: false }
+  }
+
   let saved
   try {
-    saved = JSON.parse(readFileSync(path, 'utf-8'))
-  } catch {
-    return createDefaultState()
+    saved = JSON.parse(raw)
+  } catch (err) {
+    // Молча начать с чистого листа нельзя: следующая же запись затрёт
+    // остаток, и восстанавливать будет нечего. Откладываем копию и говорим
+    // вслух — оператор увидит это в журнале и успеет позвать на помощь.
+    const copy = `${path}.broken`
+    try {
+      copyFileSync(path, copy)
+      console.error(`[state] файл состояния повреждён (${err.message}). Копия: ${copy}`)
+    } catch {
+      console.error(`[state] файл состояния повреждён (${err.message}), и копию отложить не удалось`)
+    }
+    console.error('[state] день начнётся с чистого состояния: правки и пометки групп придётся расставить заново')
+    return { state: createDefaultState(), restored: false }
   }
 
   const state = createDefaultState()
@@ -428,5 +531,7 @@ export function loadState(path) {
   }
 
   state.riderGroups = normalizeRiderGroups(state.riderGroups)
-  return state
+  return { state, restored: true }
 }
+
+export const loadState = (path) => readStateFile(path).state

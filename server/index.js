@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path'
 import express from 'express'
 import { WebSocketServer } from 'ws'
 import { config, awardGroupsProblems } from './config.js'
-import { loadState, saveState, applyCommand, syncAwardSubject } from './state.js'
+import { readStateFile, saveState, applyCommand, applyServerConfig, syncAwardSubject, clearStaleHighlight } from './state.js'
 import { startPolling } from './poller.js'
 import { startTimerPolling } from './timer.js'
 
@@ -16,35 +16,22 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 // поднять, если сервер упал посреди эфира.
 const STATE_PATH = join(root, `state.${config.stageId}.json`)
 
-const state = loadState(STATE_PATH)
+const { state, restored } = readStateFile(STATE_PATH)
 
-// Всегда перекрываем сохранённое значение текущим: иначе после репетиции
-// на полигоне в пульте показывался бы этап из state.json, а данные шли бы
-// с боевого — и наоборот. Оператор должен видеть, откуда данные на самом деле.
-state.stageId = config.stageId
-
-// Настройки, которые нужны в кадре и в пульте, едут вместе с состоянием:
-// иначе они существовали бы только в event.config.js и ни на что не влияли.
-state.eventTitle = config.eventTitle
-state.logoUrl = config.logoUrl
-state.logoMarkUrl = config.logoMarkUrl
-state.liveStageId = config.liveStageId
-state.highlightTimeout = config.highlightTimeout
-state.showRunTime = config.showRunTime
-state.showClassTop = config.showClassTop
-state.resultsByGroup = config.resultsByGroup
-state.awardGroups = config.awardGroups
-state.strictGroups = config.strictGroups
+// Настройки этапа едут вместе с состоянием: иначе они существовали бы
+// только в event.config.js и ни на что не влияли. Что при этом принадлежит
+// файлу этапа, а что оператору, разбирает applyServerConfig.
+applyServerConfig(state, config, { restored })
 
 // Состав групп мог поменяться, пока сервер лежал: выбранной группы больше
 // нет — снимаем выбор, чтобы в кадр не ушёл её заголовок поверх пустого
 // подиума, а оператор не смотрел на пустой селектор.
 syncAwardSubject(state)
 
-// Показания таймера эфемерны и с диска не поднимаются. Сервер, поднятый
-// посреди дня, видит на табло прибора прошлый результат — и обязан считать
-// это покоем, иначе чужое время подпишется под текущим спортсменом.
-state.timer = null
+// Хайлайт, переживший падение, снимаем: его страховочный таймер заводится
+// командой пульта, а её после падения не было — нижняя треть осталась бы
+// в кадре до конца дня.
+clearStaleHighlight(state)
 
 const app = express()
 
