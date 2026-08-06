@@ -123,7 +123,7 @@ if (config.timerUrl) {
   })
 }
 
-server.listen(config.port, () => {
+server.listen(config.port, config.host, () => {
   // Без сборки сервер поднимется, но обе страницы будут пустыми — в OBS
   // это выглядит как «оверлей сломался». Лучше сказать прямо и сразу.
   if (!existsSync(join(root, 'dist/index.html'))) {

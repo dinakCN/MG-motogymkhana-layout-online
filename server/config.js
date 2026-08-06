@@ -71,6 +71,17 @@ export function awardGroupsProblems(groups = []) {
   return problems
 }
 
+// Тумблеры кадра и переменные, которыми их называют в командной строке.
+// Названный прямо тумблер сильнее выбора оператора: тот, кто пишет
+// RESULTS_BY_GROUP=1 перед npm start, знает, чего хочет от этого запуска.
+// Всё остальное время тумблерами распоряжается пульт — подробности
+// в server/state.js, applyServerConfig.
+const SCENE_OPTION_ENV = {
+  showRunTime: 'SHOW_RUN_TIME',
+  showClassTop: 'SHOW_CLASS_TOP',
+  resultsByGroup: 'RESULTS_BY_GROUP',
+}
+
 export function loadConfig(env = process.env, event = eventConfig) {
   const template = event.stageUrlTemplate || 'https://gymkhana-cup.ru/competitions/stage?id={id}'
 
@@ -86,6 +97,11 @@ export function loadConfig(env = process.env, event = eventConfig) {
 
   return {
     port: Number(env.PORT) || Number(event.port) || 4300,
+    // Без HOST сервер слушает все интерфейсы: пульт открывают и с планшета,
+    // и с соседнего ноутбука. HOST=127.0.0.1 закрывает вход снаружи —
+    // это для случая, когда пульт и OBS живут на одной машине, а сеть
+    // площадки общая с посторонними.
+    host: env.HOST || undefined,
     eventTitle: event.eventTitle,
     logoUrl,
     logoMarkUrl: env.LOGO_MARK || event.logoMark || logoUrl,
@@ -115,6 +131,9 @@ export function loadConfig(env = process.env, event = eventConfig) {
     // но включать его должен тот, кто прочитал положение этапа, — иначе
     // человек молча окажется в двух церемониях, где ждали одну.
     strictGroups: event.strictGroups !== false,
+    sceneOptionsFromEnv: Object.entries(SCENE_OPTION_ENV)
+      .filter(([, variable]) => env[variable])
+      .map(([option]) => option),
   }
 }
 

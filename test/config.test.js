@@ -245,6 +245,39 @@ describe('режим итоговой таблицы', () => {
   })
 })
 
+// Пульт нужен и с планшета, поэтому сервер по умолчанию слушает все
+// интерфейсы машины. Но сеть на соревнованиях общая, и когда пульт живёт
+// на том же ноутбуке, что и OBS, вход снаружи лучше закрыть.
+describe('на каких интерфейсах слушать', () => {
+  it('по умолчанию на всех — пульт открывают и с другого устройства', () => {
+    expect(loadConfig({}, eventConfig).host).toBe(undefined)
+  })
+
+  it('HOST ограничивает одной машиной', () => {
+    expect(loadConfig({ HOST: '127.0.0.1' }, eventConfig).host).toBe('127.0.0.1')
+  })
+})
+
+// Тумблеры кадра оператор переключает из пульта, и перезапуск сервера
+// посреди дня не должен отменять его выбор (server/state.js,
+// applyServerConfig). Отличить «оператор выбрал» от «так в файле этапа»
+// сервер может только по тому, назвали ли тумблер прямо в командной строке.
+describe('тумблеры, названные в командной строке', () => {
+  it('перечисляются в конфиге', () => {
+    const c = loadConfig({ RESULTS_BY_GROUP: '1' }, eventConfig)
+    expect(c.sceneOptionsFromEnv).toEqual(['resultsByGroup'])
+  })
+
+  it('гашение тумблера — тоже прямое указание', () => {
+    const c = loadConfig({ SHOW_RUN_TIME: '0' }, eventConfig)
+    expect(c.sceneOptionsFromEnv).toEqual(['showRunTime'])
+  })
+
+  it('без переменных список пуст — в кадре останется выбор оператора', () => {
+    expect(loadConfig({}, eventConfig).sceneOptionsFromEnv).toEqual([])
+  })
+})
+
 describe('resolveTimerUrl', () => {
   it('из адреса прибора собирает путь к показаниям', () => {
     expect(resolveTimerUrl('192.168.1.97')).toBe('http://192.168.1.97/laptime')
