@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Баннер этапа</title>
+<!--
+  Исходник баннеров, лежащих рядом готовыми PNG. Это не сцена оверлея:
+  в пульте баннеров нет, они уходят в OBS картинкой. Держим шаблон здесь,
+  а не в app/, ровно поэтому — он ничего не знает о состоянии и сервере,
+  ему нужны только афиша, логотип и шрифт из соседних папок.
+
+  Как переснять, если поменялась афиша или тексты:
+    1. заменить /assets/poster.jpg;
+    2. открыть http://localhost:4300/assets/banners/banner.html?t=break1
+       (ключ — из ROUNDS, см. ниже);
+    3. снять кадр 1920×1080 браузером и положить рядом как <ключ>.png.
+
+  Кегли, цвета и фон повторяют сцену «Пауза» и BaseLayer: баннер и эфирная
+  графика должны читаться как одна семья, поэтому значения здесь — копия
+  из app/src/style.css и app/src/overlay/BreakScene.vue. Разъехаться им
+  негде: сцену меняют редко, а баннеры переснимают под каждый этап.
+-->
+<style>
+@font-face {
+  font-family: 'Golos Text';
+  src: url('/assets/fonts/GolosText.ttf') format('truetype-variations');
+  font-weight: 100 900;
+  font-display: block;
+}
+
+:root {
+  --accent: #ff9f0a;
+  --ink: #ffffff;
+  --ink-dim: rgba(235, 235, 245, 0.62);
+  --ink-faint: rgba(235, 235, 245, 0.34);
+  --r-lg: 24px;
+  --r-pill: 999px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  color: var(--ink);
+  font-family: 'Golos Text', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Фон полноэкранных сцен оверлея (BaseLayer, режим quiet). */
+.base {
+  position: relative;
+  width: 1920px;
+  height: 1080px;
+  background:
+    radial-gradient(64% 46% at 50% 44%, rgba(255, 159, 10, 0.16) 0%, transparent 72%),
+    linear-gradient(170deg, #131820 0%, #0a0e13 100%);
+  overflow: hidden;
+}
+
+/* Афиша вертикальная, кадр горизонтальный. Пустые поля по краям добираем
+   ею же — размытой до пятна: цвета в кадре тогда родные афише, а не
+   выдуманные, и переход к её краю не читается как наклейка на фоне. */
+.wash {
+  position: absolute;
+  inset: -8%;
+  background: url('/assets/poster.jpg') center / cover no-repeat;
+  filter: blur(72px) saturate(140%);
+  opacity: 0.34;
+}
+
+/* Затемнение поверх пятна: под текстом фон должен быть спокойным, иначе
+   белый заголовок сядет на светлое место афиши и потеряет контраст. */
+.vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(80% 66% at 46% 50%, transparent 0%, rgba(6, 9, 13, 0.66) 100%),
+    linear-gradient(90deg, rgba(6, 9, 13, 0.42) 0%, transparent 34%);
+}
+
+/* Афиша лежит в кадре предметом — со скруглением, кромкой и тенью, как
+   остальной материал графики. Размер подобран так, чтобы файл 640×960
+   не растягивался: он встаёт чуть меньше своего размера, а не крупнее. */
+.stage {
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 96px;
+}
+
+.poster {
+  width: 587px;
+  height: 880px;
+  border-radius: var(--r-lg);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 40px 90px rgba(0, 0, 0, 0.62), 0 0 120px rgba(255, 159, 10, 0.14);
+  overflow: hidden;
+  flex: none;
+}
+
+.poster img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+/* Колонка — flex с прижатием влево: иначе плашка логотипа растягивается
+   на всю её ширину и превращается в белую полосу. */
+.side {
+  width: 660px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+/* Светлая подложка под эмблему — как в кадре оверлея: логотип рисован
+   под светлый фон и на тёмной сцене без неё тонет. */
+.logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 132px;
+  padding: 20px 26px;
+  margin-bottom: 40px;
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: var(--r-lg);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45), 0 0 90px rgba(255, 159, 10, 0.22);
+}
+
+.logo img { max-height: 100%; }
+
+h1 {
+  font-size: 72px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.06;
+}
+
+.sub {
+  margin-top: 18px;
+  font-size: 30px;
+  color: var(--ink-dim);
+}
+
+.event {
+  margin-top: 44px;
+  font-size: 20px;
+  color: var(--ink-faint);
+  padding: 8px 24px;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.facts { display: flex; gap: 10px; margin-top: 14px; }
+
+.fact {
+  font-size: 20px;
+  color: var(--ink-faint);
+  padding: 8px 20px;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.fact.accent {
+  color: #0a0d12;
+  font-weight: 600;
+  background: var(--accent);
+  border-color: transparent;
+}
+</style>
+</head>
+<body>
+  <div class="base">
+    <div class="wash"></div>
+    <div class="vignette"></div>
+
+    <div class="stage">
+      <div class="poster"><img src="/assets/poster.jpg" alt=""></div>
+
+      <div class="side">
+        <div class="logo"><img src="/assets/logo-mark.png" alt=""></div>
+        <h1></h1>
+        <p class="sub"></p>
+        <p class="event"></p>
+        <!-- Дата и место словами — только на заставке перед эфиром: там
+             зритель ещё решает, включать ли трансляцию. В перерыве он уже
+             смотрит, и повторять ему афишу незачем. -->
+        <div class="facts" hidden>
+          <span class="fact accent">8 августа 2026</span>
+          <span class="fact">Петухова, 6/8</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+// Ключи и тексты — те же, что у сцены «Пауза» (app/src/shared/rounds.js).
+// Баннер и кадр не должны говорить о дне разными словами: зритель видит
+// их в одном эфире с разницей в минуту.
+const EVENT_TITLE = 'Чемпионат Новосибирской области по мотоджимхане 2026'
+
+const TEXTS = {
+  round1: { title: 'Идут заезды', sub: 'Первая серия' },
+  break1: { title: 'Перерыв', sub: 'Скоро вторая серия заездов' },
+  round2: { title: 'Идут заезды', sub: 'Вторая серия' },
+  final: { title: 'Подсчёт результатов', sub: 'Скоро награждение' },
+  break2: { title: 'Готовимся<br>к награждению', sub: '' },
+  awards: { title: 'Награждение', sub: '' },
+  soon: { title: 'Трансляция<br>скоро начнётся', sub: 'Оставайтесь с нами', facts: true },
+}
+
+const text = TEXTS[new URLSearchParams(location.search).get('t')] ?? TEXTS.break1
+
+document.querySelector('h1').innerHTML = text.title
+document.querySelector('.event').textContent = EVENT_TITLE
+if (text.facts) document.querySelector('.facts').hidden = false
+
+// У части моментов дня подписи нет: «Награждение» само себе объяснение.
+// Пустой абзац оставил бы дыру между заголовком и пилюлей, поэтому его
+// убираем совсем.
+const sub = document.querySelector('.sub')
+if (text.sub) sub.textContent = text.sub
+else sub.remove()
+</script>
+</body>
+</html>
