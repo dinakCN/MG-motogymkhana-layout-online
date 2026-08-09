@@ -104,8 +104,15 @@ export function loadConfig(env = process.env, event = eventConfig) {
 
   // STAGE_ID оставлен рядом со STAGE: он записан в готовых шпаргалках
   // и в истории команд, и в день эфира менять его некогда.
-  const live = resolveStage(event.stage, template)
   const current = resolveStage(env.STAGE || env.STAGE_ID || event.stage, template)
+
+  // Боевой этап живёт в файле, и пульт подсвечивает жёлтым всё, что ему
+  // не равно. Если в файле пусто, а запуск назвали переменной, сравнивать
+  // не с чем: боевым считаем тот, что едет, — иначе предупреждение горело бы
+  // всегда и перестало значить хоть что-то.
+  const live = String(event.stage ?? '').trim()
+    ? resolveStage(event.stage, template)
+    : current
 
   return {
     port: Number(env.PORT) || Number(event.port) || 4300,
@@ -152,4 +159,7 @@ export function loadConfig(env = process.env, event = eventConfig) {
   }
 }
 
-export const config = loadConfig()
+// Конфиг не собирается при импорте модуля: без вписанного этапа loadConfig
+// намеренно бросает, и тогда `npm run build` и тесты падали бы на пустом
+// шаблоне ещё до того, как кто-то попросил поднять сервер. Просят его те,
+// кому этап действительно нужен, — server/index.js.

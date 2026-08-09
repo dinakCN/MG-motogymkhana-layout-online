@@ -4,13 +4,17 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import express from 'express'
 import { WebSocketServer } from 'ws'
-import { config, awardGroupsProblems } from './config.js'
+import { loadConfig, awardGroupsProblems } from './config.js'
 import { readStateFile, saveState, applyCommand, applyServerConfig, syncAwardSubject, syncTrackScene, clearStaleHighlight } from './state.js'
 import { startPolling } from './poller.js'
 import { startTimerPolling } from './timer.js'
 import { prepareTrackMap } from './trackMap.js'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
+
+// Здесь и падаем, если этап не вписан: сервер без него не нужен никому,
+// а сообщение об этом читает тот, кто только что дал `npm start`.
+const config = loadConfig()
 
 // Состояние своё у каждого этапа. Общий файл означал бы, что репетиция
 // на полигоне затирает сцену и правки боевого дня — а именно их и надо

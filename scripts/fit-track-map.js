@@ -12,11 +12,16 @@
 
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { config } from '../server/config.js'
+import eventConfig from '../event.config.js'
+import { resolveTrackMap } from '../server/config.js'
 import { prepareTrackMap, needsFitting } from '../server/trackMap.js'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const url = process.argv[2] || config.trackMapUrl
+
+// Схему читаем прямо из файла этапа, а не через loadConfig: тот требует
+// вписанного `stage`, а уменьшать картинку можно и до того, как этап
+// назначен, — `npm run build` идёт раньше.
+const url = process.argv[2] || resolveTrackMap(process.env.TRACK_MAP ?? eventConfig.trackMap)
 
 if (!url) {
   console.log('[схема] не задана в event.config.js — уменьшать нечего')

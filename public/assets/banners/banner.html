@@ -186,20 +186,33 @@ h1 {
         <p class="event"></p>
         <!-- Дата и место словами — только на заставке перед эфиром: там
              зритель ещё решает, включать ли трансляцию. В перерыве он уже
-             смотрит, и повторять ему афишу незачем. -->
+             смотрит, и повторять ему афишу незачем.
+             Тексты подставляются скриптом ниже. -->
         <div class="facts" hidden>
-          <span class="fact accent">8 августа 2026</span>
-          <span class="fact">Петухова, 6/8</span>
+          <span class="fact accent"></span>
+          <span class="fact"></span>
         </div>
       </div>
     </div>
   </div>
 
 <script>
+// ── Правится под своё соревнование ──────────────────────────────────────
+// Название должно совпасть с eventTitle в event.config.js: баннер и кадр
+// зритель видит в одном эфире с разницей в минуту. Дата и место идут
+// только на заставку «Трансляция скоро начнётся».
+//
+// Разово, не трогая файл, — параметрами адреса:
+//   banner.html?t=soon&title=Кубок+города&date=8+августа&place=Ленина,+1
+const EVENT = {
+  title: 'Название соревнований',
+  date: 'дата',
+  place: 'место проведения',
+}
+// ────────────────────────────────────────────────────────────────────────
+
 // Ключи и тексты — те же, что у сцены «Пауза» (app/src/shared/rounds.js).
-// Баннер и кадр не должны говорить о дне разными словами: зритель видит
-// их в одном эфире с разницей в минуту.
-const EVENT_TITLE = 'Чемпионат Новосибирской области по мотоджимхане 2026'
+// Баннер и кадр не должны говорить о дне разными словами.
 
 const TEXTS = {
   round1: { title: 'Идут заезды', sub: 'Первая серия' },
@@ -211,11 +224,18 @@ const TEXTS = {
   soon: { title: 'Трансляция<br>скоро начнётся', sub: 'Оставайтесь с нами', facts: true },
 }
 
-const text = TEXTS[new URLSearchParams(location.search).get('t')] ?? TEXTS.break1
+const params = new URLSearchParams(location.search)
+const text = TEXTS[params.get('t')] ?? TEXTS.break1
 
 document.querySelector('h1').innerHTML = text.title
-document.querySelector('.event').textContent = EVENT_TITLE
-if (text.facts) document.querySelector('.facts').hidden = false
+document.querySelector('.event').textContent = params.get('title') || EVENT.title
+
+if (text.facts) {
+  const facts = document.querySelector('.facts')
+  facts.children[0].textContent = params.get('date') || EVENT.date
+  facts.children[1].textContent = params.get('place') || EVENT.place
+  facts.hidden = false
+}
 
 // У части моментов дня подписи нет: «Награждение» само себе объяснение.
 // Пустой абзац оставил бы дыру между заголовком и пилюлей, поэтому его

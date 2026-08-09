@@ -1,15 +1,19 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { loadConfig, resolveStage, resolveTimerUrl, awardGroupsProblems } from '../server/config.js'
-import eventConfig from '../event.config.js'
+import eventTemplate from '../event.config.js'
 import { UNGROUPED } from '../app/src/shared/awardGroups.js'
 
 const TEMPLATE = 'https://gymkhana-cup.ru/competitions/stage?id={id}'
 
+// В репозитории лежит шаблон: `stage` пустой, его вписывают перед эфиром.
+// Тестам нужен заполненный — пустой loadConfig отвергает намеренно, этому
+// посвящён отдельный тест ниже.
+const eventConfig = { ...eventTemplate, stage: '677' }
+
 describe('event.config.js', () => {
-  it('боевой этап и заголовок события заданы', () => {
-    expect(String(eventConfig.stage)).toBeTruthy()
-    expect(eventConfig.eventTitle).toBeTruthy()
-    expect(eventConfig.stageUrlTemplate).toContain('{id}')
+  it('шаблон конфига цел: заголовок, адрес этапа, логотипы', () => {
+    expect(eventTemplate.eventTitle).toBeTruthy()
+    expect(eventTemplate.stageUrlTemplate).toContain('{id}')
   })
 
   it('значения из файла доезжают до конфига сервера', () => {
@@ -23,8 +27,8 @@ describe('event.config.js', () => {
 
 describe('логотип', () => {
   it('путь из файла доезжает до конфига сервера', () => {
-    const c = loadConfig({}, { ...eventConfig, logo: '/assets/mgk-nsk.png' })
-    expect(c.logoUrl).toBe('/assets/mgk-nsk.png')
+    const c = loadConfig({}, { ...eventConfig, logo: '/assets/club.png' })
+    expect(c.logoUrl).toBe('/assets/club.png')
   })
 
   it('полная ссылка принимается — логотип этапа может лежать не у нас', () => {
@@ -82,8 +86,8 @@ describe('знак для угла кадра', () => {
 
 describe('схема трассы', () => {
   it('путь из файла доезжает до конфига сервера', () => {
-    const c = loadConfig({}, { ...eventConfig, trackMap: '/assets/track-677.png' })
-    expect(c.trackMapUrl).toBe('/assets/track-677.png')
+    const c = loadConfig({}, { ...eventConfig, trackMap: '/assets/track.png' })
+    expect(c.trackMapUrl).toBe('/assets/track.png')
   })
 
   it('полная ссылка принимается — схема этапа может лежать не у нас', () => {
@@ -168,6 +172,19 @@ describe('переменные окружения перекрывают фай�
 
   it('PORT перекрывает порт из файла', () => {
     expect(loadConfig({ PORT: '4310' }, eventConfig).port).toBe(4310)
+  })
+
+  // Шаблон в репозитории идёт с пустым `stage`: репетицию на архивном этапе
+  // надо уметь поднять раньше, чем назначен боевой. Сравнивать при этом
+  // не с чем — предупреждение «не боевой» не зажигаем.
+  it('STAGE работает и когда в файле этап ещё не вписан', () => {
+    const c = loadConfig({ STAGE: '670' }, { ...eventConfig, stage: '' })
+    expect(c.stageId).toBe('670')
+    expect(c.liveStageId).toBe('670')
+  })
+
+  it('без переменных окружения и без этапа в файле — понятная ошибка', () => {
+    expect(() => loadConfig({}, { ...eventConfig, stage: '' })).toThrow(/event\.config\.js/)
   })
 
   it('без переменных окружения работает боевой этап из файла', () => {

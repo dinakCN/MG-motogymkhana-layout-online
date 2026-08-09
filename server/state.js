@@ -31,7 +31,9 @@ export const RIDER_STATUSES = ['dns']
 
 export function createDefaultState() {
   return {
-    eventTitle: 'Чемпионат Новосибирской области по мотоджимхане 2026',
+    // Перекрывается eventTitle из event.config.js при старте сервера.
+    // Здесь — нейтральная подпись, чтобы состояние было полным и без него.
+    eventTitle: 'Соревнования по мотоджимхане',
     logoUrl: '/assets/logo.png',
     logoMarkUrl: '/assets/logo-mark.png',
     // Схема трассы: путь к файлу или пусто, если её на этапе нет. Пустое
