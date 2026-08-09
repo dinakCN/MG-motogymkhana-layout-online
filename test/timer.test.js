@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { parseReading, nextTimer, formatMs, pollTimerOnce, nextLink } from '../server/timer.js'
+import { parseReading, nextTimer, formatMs, pollTimerOnce, nextLink, startTimerPolling } from '../server/timer.js'
 import { parseTimeToSeconds } from '../app/src/shared/format.js'
 
 // Запись живых заездов с прибора, снятая 05.08.2026: строки вида
@@ -366,5 +366,91 @@ describe('pollTimerOnce', () => {
 
     expect(changed).toBe(false)
     expect(state.timer).toBeNull()
+  })
+})
+
+// Кадр гасит цифры через две секунды тишины, а связь объявляется потерянной
+// только через три. В этой щели картинка портится, а сказать об этом некому:
+// пульт пишет «таймер на связи», журнал чист. После эфира разобраться,
+// отчего таймер «подвисал», тогда не по чему.
+describe('провал короче обрыва связи', () => {
+  const warnings = async (fn) => {
+    const said = []
+    const original = console.warn
+    console.warn = (message) => said.push(String(message))
+    try { await fn() } finally { console.warn = original }
+    return said
+  }
+
+  it('пауза дольше двух секунд попадает в журнал, хотя связь не рвалась', async () => {
+    const state = { timer: null, timerLink: { online: true, seenAt: 1000 } }
+    const said = await warnings(() => pollTimerOnce(state, {
+      url: 'http://x/laptime', fetchImpl: ok('1019718'), now: () => 3600,
+    }))
+
+    expect(said.some(m => m.includes('пауза 2600 мс'))).toBe(true)
+    expect(state.timerLink.online).toBe(true)
+  })
+
+  it('обычный шаг опроса журнал не засоряет', async () => {
+    const state = { timer: null, timerLink: { online: true, seenAt: 1000 } }
+    const said = await warnings(() => pollTimerOnce(state, {
+      url: 'http://x/laptime', fetchImpl: ok('1019718'), now: () => 1340,
+    }))
+
+    expect(said).toEqual([])
+  })
+
+  // Молчавший прибор объявляется вернувшимся строкой «прибор отвечает» —
+  // второй жалобы на ту же паузу не нужно.
+  it('о вернувшемся после обрыва говорит одна строка, а не две', async () => {
+    const state = { timer: null, timerLink: { online: false, seenAt: 1000 } }
+    const said = await warnings(() => pollTimerOnce(state, {
+      url: 'http://x/laptime', fetchImpl: ok('1019718'), now: () => 20_000,
+    }))
+
+    expect(said).toEqual(['[timer] прибор отвечает'])
+  })
+})
+
+// Запросы идут по очереди, и шаг опроса отсчитывается от начала запроса,
+// а не от ответа. Иначе медленный прибор оплачивался бы дважды: секунда
+// ожидания плюс пауза сверху — и тишина в кадре росла бы быстрее, чем есть
+// на самом деле.
+describe('шаг опроса', () => {
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+  it('медленный ответ не складывается с паузой', async () => {
+    const at = []
+    const slow = async () => {
+      at.push(Date.now())
+      await sleep(240)
+      return { ok: true, status: 200, text: async () => '1019718' }
+    }
+
+    const stop = startTimerPolling({ timer: null, timerLink: null }, {
+      url: 'http://x/laptime', interval: 300, fetchImpl: slow,
+    })
+    await sleep(1000)
+    stop()
+
+    // Шаг 300 мс даёт четыре запроса за секунду. Со сложением вышло бы
+    // 540 мс и всего два — разница видна и без точных замеров.
+    expect(at.length).toBeGreaterThanOrEqual(3)
+  })
+
+  // Прибор с закрытым портом отвечает отказом мгновенно. Без нижней границы
+  // опрос свернулся бы в плотный цикл и жёг процессор весь день эфира.
+  it('мгновенный отказ не превращает опрос в плотный цикл', async () => {
+    let calls = 0
+    const refused = async () => { calls += 1; throw new Error('ECONNREFUSED') }
+
+    const stop = startTimerPolling({ timer: null, timerLink: null }, {
+      url: 'http://x/laptime', interval: 300, fetchImpl: refused,
+    })
+    await sleep(700)
+    stop()
+
+    expect(calls).toBeLessThanOrEqual(5)
   })
 })
